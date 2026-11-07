@@ -1,0 +1,1083 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Nash Spin 3-Max</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: control rail on the left, hand grid and verdict on the right; stacks on phones. */
+:root{
+  --bg:#f3f5f6; --panel:#ffffff; --fg:#14201f; --muted:#5b6a69; --line:#d6dddc;
+  --push:#0d7a66; --on-push:#ffffff; --cell:#e7ecec; --mix:#c98a14; --fold:#9a3b36;
+  --sel:#14201f; --ok-bg:#dff3ed; --warn-bg:#fbefd5;
+  --font-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-num:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1514; --panel:#162120; --fg:#e4efed; --muted:#8fa5a2; --line:#27393a;
+  --push:#2bb59a; --on-push:#06201b; --cell:#1f2e2e; --mix:#e0a93a; --fold:#d26a63;
+  --sel:#e4efed; --ok-bg:#12332d; --warn-bg:#3a2e12; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --panel:#162120; --fg:#e4efed; --muted:#8fa5a2; --line:#27393a;
+  --push:#2bb59a; --on-push:#06201b; --cell:#1f2e2e; --mix:#e0a93a; --fold:#d26a63;
+  --sel:#e4efed; --ok-bg:#12332d; --warn-bg:#3a2e12; color-scheme:dark;}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:14px;line-height:1.45;padding-inline:16px;padding-block:20px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:22px;margin:0;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;max-width:70ch}
+.main{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:820px){.main{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;font-weight:600}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+input,select{font:inherit;font-family:var(--font-num);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+select{font-family:var(--font-ui)}
+input:focus-visible,select:focus-visible,button:focus-visible,.cell:focus-visible{outline:2px solid var(--push);outline-offset:1px}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.nodes{display:flex;flex-direction:column;gap:6px}
+.node{all:unset;box-sizing:border-box;cursor:pointer;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.node[aria-pressed="true"]{border-color:var(--push);background:var(--ok-bg);font-weight:500}
+.node small{font-family:var(--font-num);color:var(--muted)}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.seg button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:9px 6px;border:1px solid var(--line);border-radius:6px;font-weight:600;font-family:var(--font-num)}
+.seg button[aria-pressed="true"]{background:var(--push);color:var(--on-push);border-color:var(--push)}
+.seg button:focus-visible{outline:2px solid var(--push);outline-offset:1px}
+.me input{border-color:var(--push)}
+details{border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+details[open] summary{margin-bottom:12px}
+details>div{display:flex;flex-direction:column;gap:12px}
+.verdict{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+@media(max-width:560px){.verdict{grid-template-columns:minmax(0,1fr)}}
+.big{font-family:var(--font-num);font-size:34px;font-weight:600;line-height:1}
+.big.push{color:var(--push)} .big.fold{color:var(--fold)} .big.mix{color:var(--mix)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--font-num);text-align:right;font-variant-numeric:tabular-nums}
+.gridwrap{overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(13,minmax(26px,1fr));gap:2px;min-width:390px}
+.cell{all:unset;box-sizing:border-box;cursor:pointer;aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-family:var(--font-num);font-size:11px;border-radius:3px;color:var(--fg);font-weight:500}
+.cell.on{color:var(--on-push)}
+.cell.sel{outline:2px solid var(--sel);outline-offset:1px;z-index:1}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td.n{font-family:var(--font-num);text-align:right;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto}
+.note{font-size:12px;color:var(--muted);margin:0}
+.banner{background:var(--warn-bg);border-radius:6px;padding:8px 10px;font-size:12px}
+.bar{height:4px;background:var(--cell);border-radius:2px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--push);transition:width .15s}
+button.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:6px 10px}
+.rtext{font-family:var(--font-num);font-size:12px;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
+@media(prefers-reduced-motion:reduce){.bar>i{transition:none}}
+
+.primary{font:inherit;font-weight:600;cursor:pointer;border:0;background:var(--push);color:var(--on-push);border-radius:6px;padding:11px 14px;width:100%;font-size:15px}
+.primary:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.primary[disabled]{opacity:.6;cursor:progress}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.mode{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;min-width:260px}
+.mode button{all:unset;box-sizing:border-box;cursor:pointer;text-align:center;padding:9px 14px;border:1px solid var(--line);border-radius:6px;font-weight:600;background:var(--panel)}
+.mode button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.mode button:focus-visible{outline:2px solid var(--push);outline-offset:1px}
+.stale{background:var(--warn-bg);border-radius:6px;padding:7px 10px;font-size:12px}
+.seg.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Nash Spin 3-Max</h1>
+      <p class="sub">Rangos push/fold y call/fold con ICM para la parte final de un Spin &amp; Go: 3 jugadores o heads-up.</p>
+    </div>
+    <div class="mode" id="modeSeg" role="group" aria-label="Jugadores">
+      <button type="button" data-m="3" aria-pressed="true">3 jugadores</button>
+      <button type="button" data-m="2" aria-pressed="false">2 jugadores (HU)</button>
+    </div>
+  </header>
+  <div class="main">
+    <div class="panel" id="controls">
+      <h2>Tu posición</h2>
+      <div class="seg" id="posSeg"></div>
+      <h2>Qué pasó antes</h2>
+      <div class="nodes" id="nodes"></div>
+      <h2>Stacks en ciegas grandes (BB)</h2>
+      <div class="row" id="stackRow">
+        <label class="me" id="lb0"><span id="t0">Tú</span><input id="st0" type="number" min="0.5" step="0.5" value="7.5" inputmode="decimal"></label>
+        <label id="lb1"><span id="t1">SB</span><input id="st1" type="number" min="0.5" step="0.5" value="5.5" inputmode="decimal"></label>
+        <label id="lb2"><span id="t2">BB</span><input id="st2" type="number" min="0.5" step="0.5" value="9.5" inputmode="decimal"></label>
+      </div>
+      <p class="note" id="stackNote"></p>
+      <button type="button" class="primary" id="run">Ejecutar</button>
+      <div class="stale" id="stale" hidden>Cambiaste los datos. Pulsa Ejecutar para actualizar el cuadro.</div>
+      <details>
+        <summary>Avanzado</summary>
+        <div>
+          <p class="note">Las ciegas son siempre SB = 0.5 BB y BB = 1 BB. Escribe cada stack ya convertido a ciegas grandes (fichas ÷ ciega grande).</p>
+          <div class="row">
+            <label>1.º %<input id="p1" type="number" min="0" max="100" value="100"></label>
+            <label>2.º %<input id="p2" type="number" min="0" max="100" value="0"></label>
+            <label>3.º %<input id="p3" type="number" min="0" max="100" value="0"></label>
+          </div>
+          <p class="note" id="payNote">Por defecto el ganador se lleva todo (Spin 3-max). En heads-up solo cuentan el 1.º y el 2.º premio.</p>
+          <label id="presetLabel">Cargar uno de tus spots de ejemplo (se convierten a BB y usan premios 70/30/0)
+            <select id="preset"></select></label>
+        </div>
+      </details>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+      <div class="panel">
+        <div class="bar" aria-hidden="true"><i id="prog"></i></div>
+        <div class="verdict">
+          <div>
+            <h2 id="vTitle">Resultado</h2>
+            <div style="height:8px"></div>
+            <div class="big push" id="vBig">…</div>
+            <p class="note" id="vSub" style="margin-top:8px"></p>
+          </div>
+          <dl class="kv" id="vKv"></dl>
+        </div>
+        <div class="banner" id="vBanner" hidden></div>
+      </div>
+
+      <div class="panel">
+        <h2 id="gTitle">Rango</h2>
+        <div class="gridwrap"><div class="grid" id="grid" role="grid" aria-label="Rango de manos"></div></div>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--push)"></i>Acción pura</span>
+          <span><i class="sw" style="background:linear-gradient(to top,var(--push) 50%,var(--cell) 50%)"></i>Mixta (altura = frecuencia)</span>
+          <span><i class="sw" style="background:var(--cell)"></i>Fold</span>
+          <span>Pares en la diagonal, suited arriba, offsuit abajo. Toca una mano para ver su EV.</span>
+        </div>
+        <div>
+          <h2 style="margin-bottom:6px">Rango en texto</h2>
+          <div class="rtext" id="rtext"></div>
+          <div style="height:8px"></div>
+          <button class="btn" id="copy">Copiar rango</button>
+        </div>
+      </div>
+
+      <div class="panel" id="refPanel" hidden>
+        <h2>Comparación con ICMIZER</h2>
+        <div class="tw"><table id="refTable"></table></div>
+        <p class="note" id="refNote"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Equilibrio completo con estos stacks</h2>
+        <div class="tw"><table id="sumTable"></table></div>
+        <p class="note">Porcentaje de manos (combos) con las que cada jugador hace la acción en el equilibrio Nash.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 3-handed push/fold Nash solver with ICM (BTN, SB, BB). Positions: 0=BTN 1=SB 2=BB
+(function (root) {
+  const RANKS = "23456789TJQKA";
+  const names = [], cls = [];
+  for (let r1 = 12; r1 >= 0; r1--)
+    for (let r2 = 12; r2 >= 0; r2--) {
+      if (r1 === r2) { cls.push([r1, r2, 0]); names.push(RANKS[r1] + RANKS[r2]); }
+      else if (r1 > r2) {
+        cls.push([r1, r2, 1]); names.push(RANKS[r1] + RANKS[r2] + "s");
+        cls.push([r1, r2, 0]); names.push(RANKS[r1] + RANKS[r2] + "o");
+      }
+    }
+  function combos(c) {
+    const [r1, r2, s] = c, out = [];
+    if (r1 === r2) { for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) out.push([r1 * 4 + a, r2 * 4 + b]); }
+    else if (s) { for (let a = 0; a < 4; a++) out.push([r1 * 4 + a, r2 * 4 + a]); }
+    else { for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (a !== b) out.push([r1 * 4 + a, r2 * 4 + b]); }
+    return out;
+  }
+  const CB = cls.map(combos);
+  const NC = CB.map(x => x.length);
+  const W = []; // W[h][j] = avg # villain combos of class j compatible with a hero combo of class h
+  for (let h = 0; h < 169; h++) {
+    const row = new Array(169).fill(0);
+    for (const [a0, a1] of CB[h])
+      for (let j = 0; j < 169; j++) {
+        let c = 0;
+        for (const [b0, b1] of CB[j]) if (a0 !== b0 && a0 !== b1 && a1 !== b0 && a1 !== b1) c++;
+        row[j] += c;
+      }
+    for (let j = 0; j < 169; j++) row[j] /= NC[h];
+    W.push(row);
+  }
+
+  function icm(st, p) {
+    const T = st[0] + st[1] + st[2], e = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      if (st[i] <= 0) continue;
+      const pi = st[i] / T; e[i] += p[0] * pi;
+      for (let j = 0; j < 3; j++) {
+        if (j === i || st[j] <= 0) continue;
+        const rest = T - st[i]; if (rest <= 0) continue;
+        const pij = pi * st[j] / rest, k = 3 - i - j;
+        e[j] += p[1] * pij; e[k] += p[2] * pij;
+      }
+    }
+    return e;
+  }
+  function settle(st, c, contest, order) {
+    const res = st.slice();
+    for (let i = 0; i < 3; i++) res[i] -= c[i];
+    const lv = [...new Set(order.map(i => c[i]))].filter(x => x > 0).sort((a, b) => a - b);
+    let prev = 0;
+    for (const L of lv) {
+      let amt = 0;
+      for (let i = 0; i < 3; i++) amt += Math.max(0, Math.min(c[i], L) - prev);
+      const w = order.find(i => c[i] >= L);
+      res[w] += amt; prev = L;
+    }
+    return res;
+  }
+
+  function buildScenarios(P) {
+    const s = P.stacks, p = P.payouts;
+    const pS = Math.min(P.sb, s[1]), pD = Math.min(P.bb, s[2]);
+    const I = x => icm(x, p);
+    const sc = {};
+    sc.stealB = I([s[0] + pS + pD, s[1] - pS, s[2] - pD]);       // BTN push, both fold
+    sc.stealS = I([s[0], s[1] + pD, s[2] - pD]);                 // BTN folds, SB push, BB fold
+    sc.stealD = I([s[0], s[1] - pS, s[2] + pS]);                 // BTN folds, SB folds
+    let e = Math.min(s[0], s[2]);
+    sc.BD = { B: I(settle(s, [e, pS, e], 0, [0, 2, 1])), D: I(settle(s, [e, pS, e], 0, [2, 0, 1])) };
+    e = Math.min(s[0], s[1]);
+    sc.BS = { B: I(settle(s, [e, e, pD], 0, [0, 1, 2])), S: I(settle(s, [e, e, pD], 0, [1, 0, 2])) };
+    e = Math.min(s[1], s[2]);
+    sc.SD = { S: I(settle(s, [0, e, e], 0, [1, 2, 0])), D: I(settle(s, [0, e, e], 0, [2, 1, 0])) };
+    const c3 = [s[0], Math.min(s[1], s[0]), Math.min(s[2], s[0])];
+    sc.perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]].map(o => ({ o, v: I(settle(s, c3, 0, o)) }));
+    return sc;
+  }
+
+  // EQ: 169x169 Float array-of-arrays heads-up equity
+  function createSolver(P, EQin) {
+    const EQ = EQin.map(r => Float64Array.from(r));
+    const E = new Float64Array(169 * 169), WF = new Float64Array(169 * 169);
+    for (let i = 0; i < 169; i++) for (let j = 0; j < 169; j++) { E[i * 169 + j] = EQ[i][j]; WF[i * 169 + j] = W[i][j]; }
+    const state = { use3: true, it: 0 };
+    const sc = buildScenarios(P);
+    const N = 169;
+    const strength = []; for (let h = 0; h < 169; h++) { let t = 0; for (let j = 0; j < 169; j++) t += WF[h * 169 + j] * E[h * 169 + j]; strength.push(t / 1225); }
+    const order = [...Array(169).keys()].sort((a, b) => strength[b] - strength[a]);
+    const top = frac => { const a = new Float64Array(169); let c = 0; for (const h of order) { if (c / 1326 >= frac) break; a[h] = 1; c += NC[h]; } return a; };
+    const S = { pB: top(0.42), pS: top(0.6), cS: top(0.1), cD1: top(0.12), cD2: top(0.06), cD3: top(0.35) };
+    const EV = {}; // last-computed EVs per node: arrays [fold, act]
+    const Q = new Float64Array(169 * 169); for (let i = 0; i < 169 * 169; i++) Q[i] = WF[i] / 1225; const q = (h, j) => Q[h * 169 + j];
+    const act = (arr, th = 0.004) => { const r = []; for (let i = 0; i < N; i++) if (arr[i] > th) r.push(i); return r; };
+    const PV = new Float64Array(18);
+    for (let t = 0; t < 6; t++) for (let i = 0; i < 3; i++) PV[i * 6 + t] = sc.perms[t].v[i];
+    function tri(b, j, k, idx) { // BTN hand b, SB hand j, BB hand k -> ICM of player idx
+      const eBj = E[b * 169 + j], eBk = E[b * 169 + k], eJk = E[j * 169 + k], o = idx * 6;
+      const w0 = eBj * eBk, w1 = (1 - eBj) * eJk, w2 = (1 - eBk) * (1 - eJk);
+      const iz = 1 / (w0 + w1 + w2 + 1e-12);
+      return iz * (w0 * (eJk * PV[o] + (1 - eJk) * PV[o + 1]) + w1 * (eBk * PV[o + 2] + (1 - eBk) * PV[o + 3]) + w2 * (eBj * PV[o + 4] + (1 - eBj) * PV[o + 5]));
+    }
+    // perms order check: perms[t].o === [x,y,z]; pairs[t] = [x, y, z, P(y beats z)]
+    function hu(eq, v1, v2, idx) { return eq * v1[idx] + (1 - eq) * v2[idx]; }
+
+    function evaluate() {
+      const aS = act(S.cS), aD2 = state.use3 ? act(S.cD2) : [], aD1 = act(S.cD1), aB = act(S.pB), aPS = act(S.pS), aD3 = act(S.cD3);
+      const out = {
+        B: { fold: new Float64Array(N), act: new Float64Array(N) },
+        S1: { fold: new Float64Array(N), act: new Float64Array(N) },   // SB opens (BTN folded)
+        S2: { fold: new Float64Array(N), act: new Float64Array(N) },   // SB vs BTN push
+        D1: { fold: new Float64Array(N), act: new Float64Array(N) },   // BB vs BTN push (SB folded)
+        D2: { fold: new Float64Array(N), act: new Float64Array(N) },   // BB vs BTN push + SB call
+        D3: { fold: new Float64Array(N), act: new Float64Array(N) }    // BB vs SB push
+      };
+      // BTN fold EV (independent of hand)
+      let evFoldB = 0;
+      for (let j = 0; j < N; j++) {
+        const wj = NC[j] / 1326; let inner = 0;
+        for (let k = 0; k < N; k++) {
+          const qk = q(j, k);
+          inner += qk * ((1 - S.cD3[k]) * sc.stealS[0] + S.cD3[k] * hu(E[j * 169 + k], sc.SD.S, sc.SD.D, 0));
+        }
+        evFoldB += wj * ((1 - S.pS[j]) * sc.stealD[0] + S.pS[j] * inner);
+      }
+      // --- BTN push EV
+      for (let h = 0; h < N; h++) {
+        let PD1 = 0, PD2 = 0, PSc = 0;
+        for (const k of aD1) PD1 += q(h, k) * S.cD1[k];
+        for (const k of aD2) PD2 += q(h, k) * S.cD2[k];
+        for (const j of aS) PSc += q(h, j) * S.cS[j];
+        let ev = 0;
+        let a = 0; for (const k of aD1) a += q(h, k) * S.cD1[k] * hu(E[h * 169 + k], sc.BD.B, sc.BD.D, 0);
+        ev += (1 - PSc) * ((1 - PD1) * sc.stealB[0] + a);
+        for (const j of aS) {
+          let inner = (1 - PD2) * hu(E[h * 169 + j], sc.BS.B, sc.BS.S, 0);
+          for (const k of aD2) inner += q(h, k) * S.cD2[k] * tri(h, j, k, 0);
+          ev += q(h, j) * S.cS[j] * inner;
+        }
+        out.B.act[h] = ev; out.B.fold[h] = evFoldB;
+      }
+      // --- SB open (BTN folded)
+      for (let j = 0; j < N; j++) {
+        let ev = 0;
+        for (let k = 0; k < N; k++) { const qk = q(j, k); ev += qk * ((1 - S.cD3[k]) * sc.stealS[1] + S.cD3[k] * hu(E[j * 169 + k], sc.SD.S, sc.SD.D, 1)); }
+        out.S1.act[j] = ev; out.S1.fold[j] = sc.stealD[1];
+      }
+      // --- SB vs BTN push
+      for (let j = 0; j < N; j++) {
+        let Z = 0; for (const b of aB) Z += WF[j * 169 + b] * S.pB[b];
+        if (Z < 1e-9) { out.S2.act[j] = out.S2.fold[j] = 0; continue; }
+        let PD1 = 0, PD2 = 0;
+        for (const k of aD1) PD1 += q(j, k) * S.cD1[k];
+        for (const k of aD2) PD2 += q(j, k) * S.cD2[k];
+        let evC = 0, evF = 0;
+        for (const b of aB) {
+          const pb = WF[j * 169 + b] * S.pB[b] / Z;
+          let c = (1 - PD2) * hu(E[b * 169 + j], sc.BS.B, sc.BS.S, 1);
+          for (const k of aD2) c += q(j, k) * S.cD2[k] * tri(b, j, k, 1);
+          let f = (1 - PD1) * sc.stealB[1];
+          for (const k of aD1) f += q(j, k) * S.cD1[k] * hu(E[b * 169 + k], sc.BD.B, sc.BD.D, 1);
+          evC += pb * c; evF += pb * f;
+        }
+        out.S2.act[j] = evC; out.S2.fold[j] = evF;
+      }
+      // --- BB vs BTN push, SB folded
+      for (let k = 0; k < N; k++) {
+        let Z = 0; for (const b of aB) Z += WF[k * 169 + b] * S.pB[b];
+        if (Z < 1e-9) continue;
+        let ev = 0;
+        for (const b of aB) ev += (WF[k * 169 + b] * S.pB[b] / Z) * hu(E[b * 169 + k], sc.BD.B, sc.BD.D, 2);
+        out.D1.act[k] = ev; out.D1.fold[k] = sc.stealB[2];
+      }
+      // --- BB vs BTN push, SB called
+      if (state.use3) for (let k = 0; k < N; k++) {
+        let Zb = 0, Zj = 0;
+        for (const b of aB) Zb += WF[k * 169 + b] * S.pB[b];
+        for (const j of aS) Zj += WF[k * 169 + j] * S.cS[j];
+        if (Zb < 1e-9 || Zj < 1e-9) continue;
+        let evC = 0, evF = 0;
+        for (const b of aB) {
+          const pb = WF[k * 169 + b] * S.pB[b] / Zb;
+          for (const j of aS) {
+            const pj = WF[k * 169 + j] * S.cS[j] / Zj, w = pb * pj;
+            evC += w * tri(b, j, k, 2);
+            evF += w * hu(E[b * 169 + j], sc.BS.B, sc.BS.S, 2);
+          }
+        }
+        out.D2.act[k] = evC; out.D2.fold[k] = evF;
+      }
+      // --- BB vs SB push (BTN folded)
+      for (let k = 0; k < N; k++) {
+        let Z = 0; for (const j of aPS) Z += WF[k * 169 + j] * S.pS[j];
+        if (Z < 1e-9) continue;
+        let ev = 0;
+        for (const j of aPS) ev += (WF[k * 169 + j] * S.pS[j] / Z) * hu(E[j * 169 + k], sc.SD.S, sc.SD.D, 2);
+        out.D3.act[k] = ev; out.D3.fold[k] = sc.stealS[2];
+      }
+      return out;
+    }
+    const map = { B: "pB", S1: "pS", S2: "cS", D1: "cD1", D2: "cD2", D3: "cD3" };
+    function step(alpha, eps) {
+      const o = evaluate(); let maxd = 0;
+      for (const key in map) {
+        const arr = S[map[key]];
+        for (let h = 0; h < N; h++) {
+          const d = o[key].act[h] - o[key].fold[h];
+          const hasInfo = (o[key].act[h] !== 0 || o[key].fold[h] !== 0);
+          let target = hasInfo ? Math.min(1, Math.max(0, 0.5 + d / (2 * eps))) : arr[h];
+          let nv = arr[h] + alpha * (target - arr[h]); if (nv < 0.004) nv = 0; else if (nv > 0.996) nv = 1;
+          maxd = Math.max(maxd, Math.abs(nv - arr[h])); arr[h] = nv;
+        }
+      }
+      EV.last = o; return maxd;
+    }
+    function run(maxIter = 250, tol = 1e-3) {
+      let it = 0, d = 1;
+      for (; it < maxIter; it++) {
+        const eps = 3e-4, alpha = Math.max(0.012, 1.6 / (it + 5));
+        d = step(alpha, eps);
+        if (it > 30 && d < tol) break;
+      }
+      evaluate(); EV.last = evaluate();
+      return { it, d };
+    }
+    // Two-stage solve: quick pass without 3-way showdowns, then refine with them.
+    const N1 = 60, N2 = 36;
+    function advance(n) {
+      for (let c = 0; c < n && state.it < N1 + N2; c++, state.it++) {
+        if (state.it < N1) { state.use3 = false; step(Math.max(0.012, 1.6 / (state.it + 5)), 3e-4); }
+        else { state.use3 = true; step(Math.max(0.02, 0.22 / (1 + 0.12 * (state.it - N1))), 3e-4); }
+      }
+      const done = state.it >= N1 + N2;
+      if (done) { state.use3 = true; EV.last = evaluate(); }
+      return { done, f: state.it / (N1 + N2) };
+    }
+    return { S, step, run, advance, evaluate, sc, getEV: () => EV.last };
+  }
+
+
+  // Heads-up push/fold Nash with ICM (player 0 = SB/button, player 1 = BB)
+  function createHU(P, EQin) {
+    const EQ = EQin.map(r => Float64Array.from(r)), N = 169;
+    const s = P.stacks, p = P.payouts, T = s[0] + s[1];
+    const pS = Math.min(P.sb, s[0]), pB = Math.min(P.bb, s[1]);
+    const I = a => [p[1] + (p[0] - p[1]) * a[0] / T, p[1] + (p[0] - p[1]) * a[1] / T];
+    const fold = I([s[0] - pS, s[1] + pS]), steal = I([s[0] + pB, s[1] - pB]);
+    const e = Math.min(s[0], s[1]);
+    const win = I([s[0] + e, s[1] - e]), lose = I([s[0] - e, s[1] + e]);
+    const strength = []; for (let h = 0; h < N; h++) { let t = 0; for (let j = 0; j < N; j++) t += W[h][j] * EQ[h][j]; strength.push(t / 1225); }
+    const order = [...Array(N).keys()].sort((a, b) => strength[b] - strength[a]);
+    const top = frac => { const a = new Float64Array(N); let c = 0; for (const h of order) { if (c / 1326 >= frac) break; a[h] = 1; c += NC[h]; } return a; };
+    const S = { pH: top(0.6), cH: top(0.35) };
+    function evaluate() {
+      const out = { H1: { fold: new Float64Array(N), act: new Float64Array(N) }, H2: { fold: new Float64Array(N), act: new Float64Array(N) } };
+      for (let h = 0; h < N; h++) {
+        let a = 0;
+        for (let k = 0; k < N; k++) { const q = W[h][k] / 1225, c = S.cH[k]; a += q * ((1 - c) * steal[0] + c * (EQ[h][k] * win[0] + (1 - EQ[h][k]) * lose[0])); }
+        out.H1.act[h] = a; out.H1.fold[h] = fold[0];
+        let Z = 0; for (let j = 0; j < N; j++) Z += W[h][j] * S.pH[j];
+        if (Z > 1e-9) {
+          let b = 0; for (let j = 0; j < N; j++) { const w = W[h][j] * S.pH[j] / Z; if (w > 0) b += w * (EQ[j][h] * win[1] + (1 - EQ[j][h]) * lose[1]); }
+          out.H2.act[h] = b; out.H2.fold[h] = steal[1];
+        }
+      }
+      return out;
+    }
+    const map = { H1: 'pH', H2: 'cH' };
+    function step(alpha, eps) {
+      const o = evaluate(); let maxd = 0;
+      for (const key in map) {
+        const arr = S[map[key]];
+        for (let h = 0; h < N; h++) {
+          if (o[key].act[h] === 0 && o[key].fold[h] === 0) continue;
+          const d = o[key].act[h] - o[key].fold[h];
+          const target = Math.min(1, Math.max(0, 0.5 + d / (2 * eps)));
+          let nv = arr[h] + alpha * (target - arr[h]); if (nv < 0.004) nv = 0; else if (nv > 0.996) nv = 1;
+          maxd = Math.max(maxd, Math.abs(nv - arr[h])); arr[h] = nv;
+        }
+      }
+      return maxd;
+    }
+    function run(maxIter = 300, tol = 5e-4) {
+      let it = 0, d = 1;
+      for (; it < maxIter; it++) { d = step(Math.max(0.01, 1.5 / (it + 5)), 3e-4); if (it > 40 && d < tol) break; }
+      return { it, d };
+    }
+    return { S, step, run, evaluate };
+  }
+
+  // range text parser (ICMIZER style): "22+,A2+,K8s-K2s;80:K8o,J8o;70:J4s"
+  function expandToken(tok) {
+    const idx = n => names.indexOf(n), out = [];
+    const withSuits = base => (/[so]$/.test(base) || base[0] === base[1]) ? [base] : [base + "s", base + "o"];
+    if (tok.includes("-")) {
+      const [x, y] = tok.split("-"); const A = cls[idx(x)], B = cls[idx(y)];
+      for (let i = 0; i < 169; i++) {
+        const c = cls[i];
+        if (A[0] === A[1] && B[0] === B[1]) { if (c[0] === c[1] && c[0] >= Math.min(A[0], B[0]) && c[0] <= Math.max(A[0], B[0])) out.push(i); }
+        else if (c[0] === A[0] && c[0] !== c[1] && c[2] === A[2] && c[1] >= Math.min(A[1], B[1]) && c[1] <= Math.max(A[1], B[1])) out.push(i);
+      }
+    } else if (tok.endsWith("+")) {
+      const base = tok.slice(0, -1);
+      for (const nm of withSuits(base)) {
+        const A = cls[idx(nm)];
+        for (let i = 0; i < 169; i++) {
+          const c = cls[i];
+          if (A[0] === A[1]) { if (c[0] === c[1] && c[0] >= A[0]) out.push(i); }
+          else if (c[0] === A[0] && c[0] !== c[1] && c[2] === A[2] && c[1] >= A[1]) out.push(i);
+        }
+      }
+    } else for (const nm of withSuits(tok)) { const i = idx(nm); if (i >= 0) out.push(i); }
+    return out;
+  }
+  function parseRange(text) {
+    const freq = new Float64Array(169);
+    const body = text.replace(/^\([^)]*\)\s*/, "");
+    body.split(";").forEach((seg, si) => {
+      let f = 1; seg = seg.trim();
+      const m = seg.match(/^(\d+):(.*)$/); if (m) { f = +m[1] / 100; seg = m[2]; }
+      for (let tok of seg.split(",")) {
+        tok = tok.trim(); if (!tok) continue;
+        const m2 = tok.match(/^(\d+):(.*)$/); let ff = f; if (m2) { ff = +m2[1] / 100; tok = m2[2]; }
+        for (const i of expandToken(tok)) freq[i] = ff;
+      }
+    });
+    return freq;
+  }
+  function pct(freq) { let t = 0; for (let i = 0; i < 169; i++) t += freq[i] * NC[i]; return 100 * t / 1326; }
+
+  const api = { names, cls, NC, W, icm, createSolver, createHU, parseRange, pct, buildScenarios };
+  if (typeof module !== "undefined") module.exports = api; else root.Solver = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script type="text/plain" id="solverSrc">
+// 3-handed push/fold Nash solver with ICM (BTN, SB, BB). Positions: 0=BTN 1=SB 2=BB
+(function (root) {
+  const RANKS = "23456789TJQKA";
+  const names = [], cls = [];
+  for (let r1 = 12; r1 >= 0; r1--)
+    for (let r2 = 12; r2 >= 0; r2--) {
+      if (r1 === r2) { cls.push([r1, r2, 0]); names.push(RANKS[r1] + RANKS[r2]); }
+      else if (r1 > r2) {
+        cls.push([r1, r2, 1]); names.push(RANKS[r1] + RANKS[r2] + "s");
+        cls.push([r1, r2, 0]); names.push(RANKS[r1] + RANKS[r2] + "o");
+      }
+    }
+  function combos(c) {
+    const [r1, r2, s] = c, out = [];
+    if (r1 === r2) { for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) out.push([r1 * 4 + a, r2 * 4 + b]); }
+    else if (s) { for (let a = 0; a < 4; a++) out.push([r1 * 4 + a, r2 * 4 + a]); }
+    else { for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if (a !== b) out.push([r1 * 4 + a, r2 * 4 + b]); }
+    return out;
+  }
+  const CB = cls.map(combos);
+  const NC = CB.map(x => x.length);
+  const W = []; // W[h][j] = avg # villain combos of class j compatible with a hero combo of class h
+  for (let h = 0; h < 169; h++) {
+    const row = new Array(169).fill(0);
+    for (const [a0, a1] of CB[h])
+      for (let j = 0; j < 169; j++) {
+        let c = 0;
+        for (const [b0, b1] of CB[j]) if (a0 !== b0 && a0 !== b1 && a1 !== b0 && a1 !== b1) c++;
+        row[j] += c;
+      }
+    for (let j = 0; j < 169; j++) row[j] /= NC[h];
+    W.push(row);
+  }
+
+  function icm(st, p) {
+    const T = st[0] + st[1] + st[2], e = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      if (st[i] <= 0) continue;
+      const pi = st[i] / T; e[i] += p[0] * pi;
+      for (let j = 0; j < 3; j++) {
+        if (j === i || st[j] <= 0) continue;
+        const rest = T - st[i]; if (rest <= 0) continue;
+        const pij = pi * st[j] / rest, k = 3 - i - j;
+        e[j] += p[1] * pij; e[k] += p[2] * pij;
+      }
+    }
+    return e;
+  }
+  function settle(st, c, contest, order) {
+    const res = st.slice();
+    for (let i = 0; i < 3; i++) res[i] -= c[i];
+    const lv = [...new Set(order.map(i => c[i]))].filter(x => x > 0).sort((a, b) => a - b);
+    let prev = 0;
+    for (const L of lv) {
+      let amt = 0;
+      for (let i = 0; i < 3; i++) amt += Math.max(0, Math.min(c[i], L) - prev);
+      const w = order.find(i => c[i] >= L);
+      res[w] += amt; prev = L;
+    }
+    return res;
+  }
+
+  function buildScenarios(P) {
+    const s = P.stacks, p = P.payouts;
+    const pS = Math.min(P.sb, s[1]), pD = Math.min(P.bb, s[2]);
+    const I = x => icm(x, p);
+    const sc = {};
+    sc.stealB = I([s[0] + pS + pD, s[1] - pS, s[2] - pD]);       // BTN push, both fold
+    sc.stealS = I([s[0], s[1] + pD, s[2] - pD]);                 // BTN folds, SB push, BB fold
+    sc.stealD = I([s[0], s[1] - pS, s[2] + pS]);                 // BTN folds, SB folds
+    let e = Math.min(s[0], s[2]);
+    sc.BD = { B: I(settle(s, [e, pS, e], 0, [0, 2, 1])), D: I(settle(s, [e, pS, e], 0, [2, 0, 1])) };
+    e = Math.min(s[0], s[1]);
+    sc.BS = { B: I(settle(s, [e, e, pD], 0, [0, 1, 2])), S: I(settle(s, [e, e, pD], 0, [1, 0, 2])) };
+    e = Math.min(s[1], s[2]);
+    sc.SD = { S: I(settle(s, [0, e, e], 0, [1, 2, 0])), D: I(settle(s, [0, e, e], 0, [2, 1, 0])) };
+    const c3 = [s[0], Math.min(s[1], s[0]), Math.min(s[2], s[0])];
+    sc.perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]].map(o => ({ o, v: I(settle(s, c3, 0, o)) }));
+    return sc;
+  }
+
+  // EQ: 169x169 Float array-of-arrays heads-up equity
+  function createSolver(P, EQin) {
+    const EQ = EQin.map(r => Float64Array.from(r));
+    const E = new Float64Array(169 * 169), WF = new Float64Array(169 * 169);
+    for (let i = 0; i < 169; i++) for (let j = 0; j < 169; j++) { E[i * 169 + j] = EQ[i][j]; WF[i * 169 + j] = W[i][j]; }
+    const state = { use3: true, it: 0 };
+    const sc = buildScenarios(P);
+    const N = 169;
+    const strength = []; for (let h = 0; h < 169; h++) { let t = 0; for (let j = 0; j < 169; j++) t += WF[h * 169 + j] * E[h * 169 + j]; strength.push(t / 1225); }
+    const order = [...Array(169).keys()].sort((a, b) => strength[b] - strength[a]);
+    const top = frac => { const a = new Float64Array(169); let c = 0; for (const h of order) { if (c / 1326 >= frac) break; a[h] = 1; c += NC[h]; } return a; };
+    const S = { pB: top(0.42), pS: top(0.6), cS: top(0.1), cD1: top(0.12), cD2: top(0.06), cD3: top(0.35) };
+    const EV = {}; // last-computed EVs per node: arrays [fold, act]
+    const Q = new Float64Array(169 * 169); for (let i = 0; i < 169 * 169; i++) Q[i] = WF[i] / 1225; const q = (h, j) => Q[h * 169 + j];
+    const act = (arr, th = 0.004) => { const r = []; for (let i = 0; i < N; i++) if (arr[i] > th) r.push(i); return r; };
+    const PV = new Float64Array(18);
+    for (let t = 0; t < 6; t++) for (let i = 0; i < 3; i++) PV[i * 6 + t] = sc.perms[t].v[i];
+    function tri(b, j, k, idx) { // BTN hand b, SB hand j, BB hand k -> ICM of player idx
+      const eBj = E[b * 169 + j], eBk = E[b * 169 + k], eJk = E[j * 169 + k], o = idx * 6;
+      const w0 = eBj * eBk, w1 = (1 - eBj) * eJk, w2 = (1 - eBk) * (1 - eJk);
+      const iz = 1 / (w0 + w1 + w2 + 1e-12);
+      return iz * (w0 * (eJk * PV[o] + (1 - eJk) * PV[o + 1]) + w1 * (eBk * PV[o + 2] + (1 - eBk) * PV[o + 3]) + w2 * (eBj * PV[o + 4] + (1 - eBj) * PV[o + 5]));
+    }
+    // perms order check: perms[t].o === [x,y,z]; pairs[t] = [x, y, z, P(y beats z)]
+    function hu(eq, v1, v2, idx) { return eq * v1[idx] + (1 - eq) * v2[idx]; }
+
+    function evaluate() {
+      const aS = act(S.cS), aD2 = state.use3 ? act(S.cD2) : [], aD1 = act(S.cD1), aB = act(S.pB), aPS = act(S.pS), aD3 = act(S.cD3);
+      const out = {
+        B: { fold: new Float64Array(N), act: new Float64Array(N) },
+        S1: { fold: new Float64Array(N), act: new Float64Array(N) },   // SB opens (BTN folded)
+        S2: { fold: new Float64Array(N), act: new Float64Array(N) },   // SB vs BTN push
+        D1: { fold: new Float64Array(N), act: new Float64Array(N) },   // BB vs BTN push (SB folded)
+        D2: { fold: new Float64Array(N), act: new Float64Array(N) },   // BB vs BTN push + SB call
+        D3: { fold: new Float64Array(N), act: new Float64Array(N) }    // BB vs SB push
+      };
+      // BTN fold EV (independent of hand)
+      let evFoldB = 0;
+      for (let j = 0; j < N; j++) {
+        const wj = NC[j] / 1326; let inner = 0;
+        for (let k = 0; k < N; k++) {
+          const qk = q(j, k);
+          inner += qk * ((1 - S.cD3[k]) * sc.stealS[0] + S.cD3[k] * hu(E[j * 169 + k], sc.SD.S, sc.SD.D, 0));
+        }
+        evFoldB += wj * ((1 - S.pS[j]) * sc.stealD[0] + S.pS[j] * inner);
+      }
+      // --- BTN push EV
+      for (let h = 0; h < N; h++) {
+        let PD1 = 0, PD2 = 0, PSc = 0;
+        for (const k of aD1) PD1 += q(h, k) * S.cD1[k];
+        for (const k of aD2) PD2 += q(h, k) * S.cD2[k];
+        for (const j of aS) PSc += q(h, j) * S.cS[j];
+        let ev = 0;
+        let a = 0; for (const k of aD1) a += q(h, k) * S.cD1[k] * hu(E[h * 169 + k], sc.BD.B, sc.BD.D, 0);
+        ev += (1 - PSc) * ((1 - PD1) * sc.stealB[0] + a);
+        for (const j of aS) {
+          let inner = (1 - PD2) * hu(E[h * 169 + j], sc.BS.B, sc.BS.S, 0);
+          for (const k of aD2) inner += q(h, k) * S.cD2[k] * tri(h, j, k, 0);
+          ev += q(h, j) * S.cS[j] * inner;
+        }
+        out.B.act[h] = ev; out.B.fold[h] = evFoldB;
+      }
+      // --- SB open (BTN folded)
+      for (let j = 0; j < N; j++) {
+        let ev = 0;
+        for (let k = 0; k < N; k++) { const qk = q(j, k); ev += qk * ((1 - S.cD3[k]) * sc.stealS[1] + S.cD3[k] * hu(E[j * 169 + k], sc.SD.S, sc.SD.D, 1)); }
+        out.S1.act[j] = ev; out.S1.fold[j] = sc.stealD[1];
+      }
+      // --- SB vs BTN push
+      for (let j = 0; j < N; j++) {
+        let Z = 0; for (const b of aB) Z += WF[j * 169 + b] * S.pB[b];
+        if (Z < 1e-9) { out.S2.act[j] = out.S2.fold[j] = 0; continue; }
+        let PD1 = 0, PD2 = 0;
+        for (const k of aD1) PD1 += q(j, k) * S.cD1[k];
+        for (const k of aD2) PD2 += q(j, k) * S.cD2[k];
+        let evC = 0, evF = 0;
+        for (const b of aB) {
+          const pb = WF[j * 169 + b] * S.pB[b] / Z;
+          let c = (1 - PD2) * hu(E[b * 169 + j], sc.BS.B, sc.BS.S, 1);
+          for (const k of aD2) c += q(j, k) * S.cD2[k] * tri(b, j, k, 1);
+          let f = (1 - PD1) * sc.stealB[1];
+          for (const k of aD1) f += q(j, k) * S.cD1[k] * hu(E[b * 169 + k], sc.BD.B, sc.BD.D, 1);
+          evC += pb * c; evF += pb * f;
+        }
+        out.S2.act[j] = evC; out.S2.fold[j] = evF;
+      }
+      // --- BB vs BTN push, SB folded
+      for (let k = 0; k < N; k++) {
+        let Z = 0; for (const b of aB) Z += WF[k * 169 + b] * S.pB[b];
+        if (Z < 1e-9) continue;
+        let ev = 0;
+        for (const b of aB) ev += (WF[k * 169 + b] * S.pB[b] / Z) * hu(E[b * 169 + k], sc.BD.B, sc.BD.D, 2);
+        out.D1.act[k] = ev; out.D1.fold[k] = sc.stealB[2];
+      }
+      // --- BB vs BTN push, SB called
+      if (state.use3) for (let k = 0; k < N; k++) {
+        let Zb = 0, Zj = 0;
+        for (const b of aB) Zb += WF[k * 169 + b] * S.pB[b];
+        for (const j of aS) Zj += WF[k * 169 + j] * S.cS[j];
+        if (Zb < 1e-9 || Zj < 1e-9) continue;
+        let evC = 0, evF = 0;
+        for (const b of aB) {
+          const pb = WF[k * 169 + b] * S.pB[b] / Zb;
+          for (const j of aS) {
+            const pj = WF[k * 169 + j] * S.cS[j] / Zj, w = pb * pj;
+            evC += w * tri(b, j, k, 2);
+            evF += w * hu(E[b * 169 + j], sc.BS.B, sc.BS.S, 2);
+          }
+        }
+        out.D2.act[k] = evC; out.D2.fold[k] = evF;
+      }
+      // --- BB vs SB push (BTN folded)
+      for (let k = 0; k < N; k++) {
+        let Z = 0; for (const j of aPS) Z += WF[k * 169 + j] * S.pS[j];
+        if (Z < 1e-9) continue;
+        let ev = 0;
+        for (const j of aPS) ev += (WF[k * 169 + j] * S.pS[j] / Z) * hu(E[j * 169 + k], sc.SD.S, sc.SD.D, 2);
+        out.D3.act[k] = ev; out.D3.fold[k] = sc.stealS[2];
+      }
+      return out;
+    }
+    const map = { B: "pB", S1: "pS", S2: "cS", D1: "cD1", D2: "cD2", D3: "cD3" };
+    function step(alpha, eps) {
+      const o = evaluate(); let maxd = 0;
+      for (const key in map) {
+        const arr = S[map[key]];
+        for (let h = 0; h < N; h++) {
+          const d = o[key].act[h] - o[key].fold[h];
+          const hasInfo = (o[key].act[h] !== 0 || o[key].fold[h] !== 0);
+          let target = hasInfo ? Math.min(1, Math.max(0, 0.5 + d / (2 * eps))) : arr[h];
+          let nv = arr[h] + alpha * (target - arr[h]); if (nv < 0.004) nv = 0; else if (nv > 0.996) nv = 1;
+          maxd = Math.max(maxd, Math.abs(nv - arr[h])); arr[h] = nv;
+        }
+      }
+      EV.last = o; return maxd;
+    }
+    function run(maxIter = 250, tol = 1e-3) {
+      let it = 0, d = 1;
+      for (; it < maxIter; it++) {
+        const eps = 3e-4, alpha = Math.max(0.012, 1.6 / (it + 5));
+        d = step(alpha, eps);
+        if (it > 30 && d < tol) break;
+      }
+      evaluate(); EV.last = evaluate();
+      return { it, d };
+    }
+    // Two-stage solve: quick pass without 3-way showdowns, then refine with them.
+    const N1 = 60, N2 = 36;
+    function advance(n) {
+      for (let c = 0; c < n && state.it < N1 + N2; c++, state.it++) {
+        if (state.it < N1) { state.use3 = false; step(Math.max(0.012, 1.6 / (state.it + 5)), 3e-4); }
+        else { state.use3 = true; step(Math.max(0.02, 0.22 / (1 + 0.12 * (state.it - N1))), 3e-4); }
+      }
+      const done = state.it >= N1 + N2;
+      if (done) { state.use3 = true; EV.last = evaluate(); }
+      return { done, f: state.it / (N1 + N2) };
+    }
+    return { S, step, run, advance, evaluate, sc, getEV: () => EV.last };
+  }
+
+
+  // Heads-up push/fold Nash with ICM (player 0 = SB/button, player 1 = BB)
+  function createHU(P, EQin) {
+    const EQ = EQin.map(r => Float64Array.from(r)), N = 169;
+    const s = P.stacks, p = P.payouts, T = s[0] + s[1];
+    const pS = Math.min(P.sb, s[0]), pB = Math.min(P.bb, s[1]);
+    const I = a => [p[1] + (p[0] - p[1]) * a[0] / T, p[1] + (p[0] - p[1]) * a[1] / T];
+    const fold = I([s[0] - pS, s[1] + pS]), steal = I([s[0] + pB, s[1] - pB]);
+    const e = Math.min(s[0], s[1]);
+    const win = I([s[0] + e, s[1] - e]), lose = I([s[0] - e, s[1] + e]);
+    const strength = []; for (let h = 0; h < N; h++) { let t = 0; for (let j = 0; j < N; j++) t += W[h][j] * EQ[h][j]; strength.push(t / 1225); }
+    const order = [...Array(N).keys()].sort((a, b) => strength[b] - strength[a]);
+    const top = frac => { const a = new Float64Array(N); let c = 0; for (const h of order) { if (c / 1326 >= frac) break; a[h] = 1; c += NC[h]; } return a; };
+    const S = { pH: top(0.6), cH: top(0.35) };
+    function evaluate() {
+      const out = { H1: { fold: new Float64Array(N), act: new Float64Array(N) }, H2: { fold: new Float64Array(N), act: new Float64Array(N) } };
+      for (let h = 0; h < N; h++) {
+        let a = 0;
+        for (let k = 0; k < N; k++) { const q = W[h][k] / 1225, c = S.cH[k]; a += q * ((1 - c) * steal[0] + c * (EQ[h][k] * win[0] + (1 - EQ[h][k]) * lose[0])); }
+        out.H1.act[h] = a; out.H1.fold[h] = fold[0];
+        let Z = 0; for (let j = 0; j < N; j++) Z += W[h][j] * S.pH[j];
+        if (Z > 1e-9) {
+          let b = 0; for (let j = 0; j < N; j++) { const w = W[h][j] * S.pH[j] / Z; if (w > 0) b += w * (EQ[j][h] * win[1] + (1 - EQ[j][h]) * lose[1]); }
+          out.H2.act[h] = b; out.H2.fold[h] = steal[1];
+        }
+      }
+      return out;
+    }
+    const map = { H1: 'pH', H2: 'cH' };
+    function step(alpha, eps) {
+      const o = evaluate(); let maxd = 0;
+      for (const key in map) {
+        const arr = S[map[key]];
+        for (let h = 0; h < N; h++) {
+          if (o[key].act[h] === 0 && o[key].fold[h] === 0) continue;
+          const d = o[key].act[h] - o[key].fold[h];
+          const target = Math.min(1, Math.max(0, 0.5 + d / (2 * eps)));
+          let nv = arr[h] + alpha * (target - arr[h]); if (nv < 0.004) nv = 0; else if (nv > 0.996) nv = 1;
+          maxd = Math.max(maxd, Math.abs(nv - arr[h])); arr[h] = nv;
+        }
+      }
+      return maxd;
+    }
+    function run(maxIter = 300, tol = 5e-4) {
+      let it = 0, d = 1;
+      for (; it < maxIter; it++) { d = step(Math.max(0.01, 1.5 / (it + 5)), 3e-4); if (it > 40 && d < tol) break; }
+      return { it, d };
+    }
+    return { S, step, run, evaluate };
+  }
+
+  // range text parser (ICMIZER style): "22+,A2+,K8s-K2s;80:K8o,J8o;70:J4s"
+  function expandToken(tok) {
+    const idx = n => names.indexOf(n), out = [];
+    const withSuits = base => (/[so]$/.test(base) || base[0] === base[1]) ? [base] : [base + "s", base + "o"];
+    if (tok.includes("-")) {
+      const [x, y] = tok.split("-"); const A = cls[idx(x)], B = cls[idx(y)];
+      for (let i = 0; i < 169; i++) {
+        const c = cls[i];
+        if (A[0] === A[1] && B[0] === B[1]) { if (c[0] === c[1] && c[0] >= Math.min(A[0], B[0]) && c[0] <= Math.max(A[0], B[0])) out.push(i); }
+        else if (c[0] === A[0] && c[0] !== c[1] && c[2] === A[2] && c[1] >= Math.min(A[1], B[1]) && c[1] <= Math.max(A[1], B[1])) out.push(i);
+      }
+    } else if (tok.endsWith("+")) {
+      const base = tok.slice(0, -1);
+      for (const nm of withSuits(base)) {
+        const A = cls[idx(nm)];
+        for (let i = 0; i < 169; i++) {
+          const c = cls[i];
+          if (A[0] === A[1]) { if (c[0] === c[1] && c[0] >= A[0]) out.push(i); }
+          else if (c[0] === A[0] && c[0] !== c[1] && c[2] === A[2] && c[1] >= A[1]) out.push(i);
+        }
+      }
+    } else for (const nm of withSuits(tok)) { const i = idx(nm); if (i >= 0) out.push(i); }
+    return out;
+  }
+  function parseRange(text) {
+    const freq = new Float64Array(169);
+    const body = text.replace(/^\([^)]*\)\s*/, "");
+    body.split(";").forEach((seg, si) => {
+      let f = 1; seg = seg.trim();
+      const m = seg.match(/^(\d+):(.*)$/); if (m) { f = +m[1] / 100; seg = m[2]; }
+      for (let tok of seg.split(",")) {
+        tok = tok.trim(); if (!tok) continue;
+        const m2 = tok.match(/^(\d+):(.*)$/); let ff = f; if (m2) { ff = +m2[1] / 100; tok = m2[2]; }
+        for (const i of expandToken(tok)) freq[i] = ff;
+      }
+    });
+    return freq;
+  }
+  function pct(freq) { let t = 0; for (let i = 0; i < 169; i++) t += freq[i] * NC[i]; return 100 * t / 1326; }
+
+  const api = { names, cls, NC, W, icm, createSolver, createHU, parseRange, pct, buildScenarios };
+  if (typeof module !== "undefined") module.exports = api; else root.Solver = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+const EQ_RAW = [[499,882,936,874,926,868,924,873,922,887,935,876,931,879,931,883,935,865,919,872,923,880,923,879,934,823,831,871,824,869,819,862,829,872,841,882,837,876,832,875,839,880,842,886,848,888,852,892,818,815,846,806,844,811,849,829,863,836,875,834,872,833,871,834,877,845,879,847,893,812,786,830,794,832,804,846,819,858,828,872,825,871,835,880,835,882,847,882,811,781,814,788,832,798,844,811,858,830,872,831,872,834,875,841,882,805,777,815,797,827,799,848,815,860,839,878,833,879,838,883,802,780,803,788,824,802,840,822,864,840,883,838,880,801,779,815,792,829,806,846,825,863,841,884,793,775,816,788,832,806,855,820,866,812,789,823,812,844,823,858,810,808,850,822,876,819,830,875,824],[118,501,523,708,761,709,752,706,758,712,748,704,751,703,745,704,750,701,736,696,747,711,748,710,750,338,713,763,712,750,701,746,728,772,728,774,724,766,726,763,728,765,730,779,735,785,741,782,466,631,674,636,668,648,675,647,683,660,695,658,684,658,692,666,696,673,695,672,701,459,610,641,631,656,643,669,643,674,651,685,651,690,666,692,654,703,664,698,461,621,648,619,664,635,668,640,664,659,693,656,686,660,686,662,694,470,622,652,630,649,637,663,641,674,652,687,658,690,664,691,465,613,636,614,656,626,664,648,680,655,691,662,690,475,610,638,623,651,633,674,648,679,662,688,469,605,640,618,654,644,664,647,684,477,608,642,630,656,638,663,489,635,663,641,670,492,644,672,498],[64,477,500,695,746,698,741,696,739,704,739,695,737,692,732,694,742,688,729,694,736,702,733,705,748,306,703,742,708,750,696,737,712,757,714,757,721,758,710,766,715,766,727,768,730,776,720,776,435,605,648,611,642,613,655,637,668,636,675,635,679,637,681,638,675,641,678,644,694,425,590,629,602,648,616,651,622,668,639,672,635,675,652,676,640,681,650,687,422,593,629,604,635,610,653,620,663,642,681,635,668,632,685,631,680,450,599,648,601,641,617,649,613,658,643,673,628,676,631,675,440,580,621,596,635,602,646,628,663,638,672,638,675,452,587,618,601,632,610,650,625,662,627,677,450,578,615,599,629,609,652,622,662,451,590,630,600,646,615,648,458,606,636,614,658,458,605,663,477],[126,292,305,498,523,709,745,713,747,722,749,700,748,706,745,703,747,694,733,691,743,701,744,704,749,321,715,754,624,647,614,640,628,662,631,670,627,663,626,659,636,658,641,666,638,671,645,676,344,702,747,696,741,711,752,718,760,727,770,724,765,724,766,729,776,734,778,736,780,466,614,652,635,655,648,670,655,684,659,690,652,690,667,700,662,696,659,707,455,626,653,629,658,638,672,642,681,647,692,659,694,670,700,668,699,479,609,644,634,658,633,660,645,676,661,687,658,687,658,693,476,615,648,621,650,632,660,644,675,669,688,664,689,482,617,646,626,656,629,666,651,682,675,692,483,608,638,622,656,634,675,651,680,486,614,637,621,660,640,657,482,630,660,648,672,499,645,678,504],[74,239,254,477,500,699,735,687,735,691,740,692,739,691,732,694,730,681,728,691,721,690,726,692,746,279,704,739,597,629,586,632,596,637,615,642,602,645,604,642,608,636,613,641,621,649,617,660,304,681,726,682,732,705,747,710,742,719,760,710,750,715,754,725,766,725,764,734,777,438,601,634,604,644,620,649,630,658,634,679,634,675,634,682,647,682,651,689,432,600,630,603,642,617,652,629,662,634,680,636,679,643,678,641,676,440,605,637,598,638,606,640,625,663,648,678,638,671,642,674,446,591,629,588,629,603,648,625,664,643,667,637,678,450,582,629,599,640,619,649,623,662,643,678,458,584,619,601,638,610,650,625,660,454,588,621,600,640,618,650,465,601,639,616,652,476,621,664,476],[132,291,302,291,301,497,520,701,739,696,741,698,735,696,739,717,743,682,740,680,738,688,734,698,748,327,592,620,713,754,625,650,634,656,640,678,640,666,644,662,628,657,638,667,642,666,649,675,320,702,740,604,642,621,632,627,653,635,663,632,664,634,662,639,665,646,664,647,670,339,678,726,705,739,701,742,704,760,721,762,726,765,725,774,731,784,738,777,464,630,650,634,664,644,661,652,679,664,693,662,695,668,698,671,696,470,612,641,626,648,635,669,640,674,659,692,661,692,663,693,471,616,649,618,652,635,669,650,678,662,689,661,698,472,615,649,627,660,637,671,644,682,665,695,481,615,647,626,661,641,671,664,683,493,619,644,628,664,642,667,495,631,656,647,671,492,650,678,507],[76,248,259,255,265,480,500,688,728,687,736,686,724,682,724,684,729,673,710,674,721,682,718,680,721,288,562,594,704,747,597,630,603,646,608,657,604,649,604,651,609,644,620,652,621,648,621,656,280,689,724,585,620,593,617,604,640,609,648,606,643,606,642,607,652,614,656,613,653,302,672,706,694,739,690,733,702,743,708,763,711,758,719,764,725,773,735,777,436,601,632,607,643,623,658,630,670,644,683,638,684,641,683,647,691,445,591,629,608,638,606,653,623,653,642,682,645,680,641,678,449,590,628,603,630,600,648,628,664,639,674,640,679,459,587,626,601,637,611,650,633,678,614,680,457,592,624,604,638,608,655,625,666,457,594,624,601,643,614,652,472,605,643,625,666,480,620,665,472],[127,294,304,287,313,299,312,497,523,693,730,686,736,686,731,682,731,672,714,677,724,684,728,691,725,318,595,618,588,610,717,757,625,660,643,676,627,663,631,663,628,662,646,667,639,680,647,669,328,582,611,693,734,628,654,625,652,636,670,633,659,640,667,639,666,644,669,646,680,323,684,722,618,640,624,649,623,657,635,672,629,667,630,668,635,664,644,677,338,692,734,694,735,694,740,704,758,722,762,724,765,730,773,732,780,470,622,641,631,654,637,661,649,681,665,698,659,690,664,696,472,613,638,621,659,633,677,649,677,668,698,666,695,490,612,640,629,659,635,665,658,686,663,702,475,616,649,627,657,634,667,658,684,483,618,649,638,661,642,677,496,634,658,640,680,491,651,674,507],[78,242,261,253,265,261,272,477,502,679,709,675,713,663,714,667,713,665,708,668,704,667,704,680,710,288,559,603,566,595,701,746,600,647,610,664,617,652,609,648,614,646,611,650,616,652,622,655,287,549,587,686,725,599,632,600,646,614,648,603,640,615,649,614,642,620,649,622,660,283,673,710,583,618,596,626,599,643,604,649,606,648,618,652,614,646,618,651,313,679,723,673,714,687,731,704,741,711,766,721,760,722,770,722,772,451,591,632,601,636,613,659,628,666,638,678,641,683,640,682,439,593,623,604,641,616,648,625,662,640,684,638,682,449,588,621,611,644,618,647,630,669,646,685,452,601,635,605,635,619,644,626,662,468,599,628,602,641,620,656,464,604,647,617,656,478,621,658,478],[113,288,296,278,309,304,313,307,321,499,524,670,707,665,706,662,702,657,694,657,690,657,695,659,703,326,577,603,575,605,578,593,705,751,632,666,630,650,619,646,621,667,625,662,625,656,640,660,314,569,594,567,592,698,740,618,650,634,654,630,649,621,658,628,658,628,659,630,658,310,556,584,684,730,601,622,622,641,616,652,612,644,621,655,626,652,627,660,322,674,716,589,628,607,630,614,635,620,649,628,658,626,662,620,655,339,675,720,686,729,696,733,710,752,730,775,730,772,732,778,458,614,644,619,662,634,665,646,680,658,692,668,691,464,604,652,623,653,643,671,649,676,661,692,467,620,634,632,657,636,667,653,679,468,618,655,630,653,638,664,480,624,662,650,675,488,639,678,501],[65,252,261,251,260,259,264,270,291,476,501,650,689,648,690,648,690,638,674,639,677,647,675,626,689,285,548,578,552,585,550,579,707,744,599,646,591,630,597,627,596,636,607,639,593,642,612,638,278,530,577,534,568,680,732,588,628,603,637,596,629,595,634,599,642,592,651,608,642,286,536,558,661,718,580,618,592,620,603,627,600,636,608,636,600,638,600,642,278,657,697,570,607,579,621,585,630,599,640,603,634,602,643,608,646,296,658,698,679,713,682,728,700,742,719,763,715,763,714,770,429,580,629,599,635,605,652,625,667,638,676,641,677,437,595,616,599,640,611,648,629,670,638,680,441,594,626,602,644,600,654,626,667,451,590,624,604,636,613,650,453,605,644,618,659,458,615,662,468],[124,296,305,300,308,302,314,314,325,330,350,499,524,646,681,649,674,635,670,632,675,618,676,648,673,326,571,609,565,592,568,603,584,604,720,766,626,659,628,652,622,650,625,658,637,664,628,660,326,564,595,562,599,588,600,710,751,633,664,625,650,628,656,626,646,620,657,626,664,312,556,579,570,596,694,737,614,645,628,656,616,656,625,662,632,664,625,667,321,566,583,680,721,612,630,617,643,617,653,620,654,632,650,638,661,330,677,708,605,625,607,633,610,644,626,658,624,657,637,660,346,669,709,682,720,706,747,708,752,729,783,734,772,471,614,641,622,662,638,671,655,681,670,702,470,617,644,628,657,635,670,656,679,486,614,650,625,663,640,667,488,630,662,648,674,496,651,666,501],[69,249,263,252,261,265,276,264,287,293,311,476,499,629,660,629,670,615,647,617,648,620,658,613,656,281,544,573,538,576,535,572,559,594,700,752,597,644,605,635,599,628,606,635,606,640,602,648,284,538,565,536,560,556,578,695,742,596,650,598,631,592,635,601,634,603,643,599,645,279,531,566,543,577,681,728,596,627,611,645,596,639,598,630,604,640,612,644,280,530,572,666,704,583,617,587,622,596,638,598,632,594,635,600,643,283,660,688,570,608,581,619,595,628,600,645,602,650,608,654,307,661,702,676,713,695,732,709,754,723,764,728,768,441,586,625,600,641,614,660,626,669,651,682,442,594,629,604,646,618,648,637,666,455,587,628,603,646,623,657,457,608,642,622,659,477,622,664,470],[121,297,308,294,309,304,318,314,337,335,352,354,371,496,526,616,653,597,637,605,636,601,637,603,644,318,575,591,567,599,566,597,585,608,591,629,718,758,630,660,622,653,632,652,627,663,640,659,319,560,579,553,577,566,605,583,607,728,764,626,651,619,651,630,651,629,656,630,660,316,548,569,565,584,562,601,714,748,623,657,620,654,617,659,632,650,636,662,321,556,588,561,600,696,735,616,643,634,658,623,654,623,657,629,652,318,562,592,685,727,610,632,623,648,624,657,633,652,637,663,333,676,707,596,620,607,635,614,643,629,664,632,664,348,669,714,695,730,703,749,721,767,740,780,462,616,644,635,653,647,670,654,692,471,616,646,629,660,648,672,488,638,660,647,680,501,648,678,514],[69,255,268,255,268,261,276,269,286,294,310,319,340,474,501,594,628,579,617,584,620,583,619,592,622,281,546,574,548,572,545,575,558,594,563,601,708,755,608,636,598,646,596,637,598,641,609,657,283,529,569,523,560,544,572,552,590,714,747,598,628,598,630,598,639,597,644,595,640,288,523,545,530,570,558,587,698,738,597,640,601,633,604,636,601,638,609,644,285,530,562,550,570,675,722,596,625,598,640,610,630,607,632,606,646,289,540,562,680,703,580,619,591,634,598,640,607,641,603,656,292,664,697,574,612,581,617,598,633,610,644,609,640,304,662,701,680,717,698,714,704,761,726,775,435,595,633,603,639,615,646,633,665,450,589,634,610,638,625,659,455,601,642,624,664,458,622,666,476],[117,296,306,297,306,283,316,318,333,338,352,351,371,384,406,498,523,572,601,566,606,571,598,574,608,314,577,596,562,599,565,593,580,611,584,626,596,623,725,755,630,665,621,652,630,651,630,665,326,569,579,556,583,576,597,581,610,592,614,717,756,622,661,624,662,627,660,625,659,315,537,566,555,589,573,596,574,604,714,757,624,648,626,651,626,655,629,659,326,562,574,554,588,571,607,699,748,618,654,622,644,628,653,629,654,332,544,578,560,589,693,735,612,645,623,657,624,662,638,657,327,552,590,682,720,609,632,622,670,628,658,618,653,333,662,706,597,624,614,636,622,654,626,664,341,677,713,683,737,706,745,722,768,463,608,658,632,655,648,670,471,634,656,652,671,484,647,677,493],[65,250,258,253,270,257,271,269,287,298,310,326,330,347,372,477,499,549,577,542,576,553,584,558,587,286,546,575,538,564,539,570,552,586,573,600,562,596,721,754,603,636,601,642,602,643,609,645,284,520,558,524,558,542,576,550,587,569,607,709,749,600,631,610,634,597,638,597,646,284,511,539,531,553,550,575,559,584,707,748,591,628,594,627,596,632,603,635,277,526,551,530,559,544,580,688,733,599,634,586,641,600,636,606,638,292,525,560,543,568,679,718,584,621,604,642,598,638,601,638,284,528,570,667,706,575,612,593,628,598,643,604,636,293,658,692,563,604,584,622,594,636,608,642,306,666,703,682,718,691,735,711,755,439,582,628,611,640,621,651,444,604,641,610,662,457,628,656,465],[135,299,312,306,319,318,327,328,335,343,362,365,385,403,421,428,451,498,524,550,581,558,580,564,586,340,569,603,564,606,567,587,577,615,597,622,598,623,587,618,722,769,642,674,642,679,639,670,337,562,578,554,577,569,599,577,606,586,620,593,618,725,764,636,666,634,662,642,667,333,540,568,557,590,569,602,583,611,593,618,719,766,630,666,636,668,636,666,327,533,570,563,590,572,597,573,598,710,756,623,662,625,662,630,660,345,563,588,561,589,574,597,699,744,641,662,633,662,634,664,344,555,590,565,594,689,734,631,653,645,663,642,673,345,560,596,692,722,619,650,631,651,646,677,340,672,706,610,639,627,653,641,658,366,687,733,708,748,718,765,486,646,679,661,693,489,659,684,496],[81,264,271,267,272,260,290,286,292,306,326,330,353,363,383,399,423,476,500,526,559,526,556,526,562,300,549,589,539,579,539,569,563,597,576,598,564,596,562,601,718,760,619,657,618,660,612,653,299,523,574,527,562,550,581,565,590,562,601,572,601,713,750,617,643,610,657,619,648,298,522,541,541,564,547,572,558,593,570,597,706,754,609,648,613,645,613,645,295,527,548,528,554,541,572,552,586,704,739,600,649,605,648,609,648,302,525,557,534,567,553,584,689,738,604,646,617,647,605,651,306,533,566,543,565,675,723,602,639,608,655,604,652,306,530,568,670,709,589,629,601,646,613,660,310,662,695,584,617,592,630,607,644,320,681,723,689,738,708,760,457,616,656,634,670,466,638,671,468],[128,304,306,309,309,320,326,323,332,343,361,368,383,395,416,434,458,450,474,501,525,528,553,532,559,336,576,606,570,598,561,597,578,610,599,634,594,616,592,627,604,630,724,765,635,669,645,671,325,559,594,554,581,569,602,578,606,587,612,599,620,601,628,720,770,646,666,646,665,326,543,570,553,585,572,598,580,608,594,619,599,631,717,760,635,666,638,668,332,548,568,558,590,566,607,582,606,600,630,716,755,629,654,622,660,327,544,574,563,590,566,598,588,614,718,758,634,659,635,660,326,556,570,556,581,582,605,706,741,630,672,630,663,337,554,579,579,596,698,743,618,661,632,674,344,562,591,687,716,621,646,628,660,336,689,724,616,630,621,656,365,711,747,716,764,491,668,688,497],[77,253,264,257,279,262,279,276,296,310,323,325,352,364,380,394,424,419,441,475,501,500,540,509,542,298,548,571,548,568,546,571,548,587,564,602,564,597,565,598,573,620,726,753,621,648,622,658,293,528,569,534,562,542,578,546,596,572,601,566,602,579,604,709,757,613,648,611,650,296,518,553,528,561,544,576,551,587,568,594,571,598,707,757,609,647,607,652,293,514,556,522,571,536,575,553,588,575,604,710,738,608,641,617,648,296,521,545,535,581,539,573,558,588,706,753,607,646,615,645,302,526,560,531,567,555,588,695,732,615,646,609,646,305,528,554,542,586,683,732,602,638,617,654,311,548,570,672,706,599,627,604,644,296,676,707,578,618,597,633,335,700,745,716,758,465,635,677,480],[120,289,298,299,310,312,318,316,333,343,353,382,380,399,417,429,447,442,474,472,500,499,528,528,550,324,565,600,563,595,570,596,582,617,584,628,589,625,584,622,605,633,602,648,730,772,641,680,319,563,587,555,586,571,600,574,607,586,615,590,625,600,633,604,628,726,769,638,665,330,545,571,560,580,558,590,572,613,586,620,594,621,604,631,720,756,639,656,331,554,570,552,584,574,591,573,593,593,624,599,621,713,762,638,660,332,544,576,556,590,566,589,579,616,605,632,717,757,630,660,331,535,575,546,580,576,599,585,613,714,754,628,659,344,543,575,568,598,578,606,709,752,626,666,345,558,598,580,599,693,740,632,663,331,566,598,695,742,622,646,339,704,737,614,644,372,719,770,491],[77,252,267,256,274,266,282,272,296,305,325,324,342,363,381,402,416,420,444,447,460,472,501,505,532,293,550,576,540,579,534,568,555,584,553,601,568,602,568,594,563,608,571,616,715,759,613,649,290,529,560,522,560,542,574,554,582,571,592,561,596,579,609,572,604,707,760,613,653,291,518,542,530,560,543,567,547,586,551,584,569,602,570,603,715,759,605,651,292,511,556,521,561,536,569,551,582,568,600,566,603,717,744,606,646,296,510,553,536,560,542,576,570,593,574,604,703,749,608,660,301,506,543,523,551,537,573,554,596,714,746,600,648,299,521,554,548,574,556,579,695,735,612,655,310,532,562,547,580,684,718,602,646,302,534,576,684,724,598,628,309,690,728,594,641,326,712,757,470],[121,290,295,296,308,302,320,309,320,341,374,352,387,397,408,426,442,436,474,468,491,472,495,502,525,328,565,602,569,607,570,597,586,615,580,622,583,615,583,616,603,622,609,634,603,647,728,769,319,553,585,554,578,574,599,580,602,590,609,588,609,598,624,601,622,601,631,728,771,333,537,567,560,583,555,584,572,604,577,612,588,623,597,631,606,625,722,763,320,549,565,550,576,555,583,564,594,594,615,591,630,597,627,720,762,335,550,577,554,586,559,593,577,616,592,628,603,625,715,759,339,543,567,553,581,579,604,584,614,592,628,717,758,329,533,567,561,594,577,601,586,610,717,758,332,563,575,564,596,574,605,705,747,334,557,581,572,598,708,752,343,575,601,711,755,347,705,755,386],[66,250,252,251,254,252,279,275,290,297,311,327,344,356,378,392,413,414,438,441,458,450,468,475,500,282,550,569,540,576,544,573,551,586,556,588,569,594,558,593,564,608,571,617,585,605,722,756,290,530,562,515,564,541,571,546,581,562,597,545,588,568,593,567,617,579,619,714,756,282,512,550,531,565,532,568,545,575,555,585,568,608,572,602,567,608,715,754,286,519,549,530,560,535,576,543,572,566,595,558,600,574,609,710,750,293,518,546,525,557,532,567,550,593,567,605,563,602,713,748,302,515,546,524,549,539,582,563,586,571,601,706,747,295,516,541,535,583,548,582,554,593,700,746,297,532,560,538,567,548,578,694,732,295,526,574,552,577,694,741,301,546,581,700,747,315,708,753,338],[177,662,694,679,721,673,712,682,712,674,715,674,719,682,719,686,714,660,700,664,702,676,707,672,718,499,854,912,851,907,854,902,869,923,879,938,877,936,878,933,874,929,879,932,891,938,892,945,821,821,862,822,868,825,860,820,865,839,876,839,876,830,876,836,880,845,886,844,896,811,807,840,805,845,812,848,819,863,832,878,825,866,832,876,836,879,841,882,811,794,831,793,833,805,839,813,859,826,865,830,868,837,877,834,880,811,780,821,790,828,804,839,819,855,833,869,830,878,829,877,811,783,820,788,832,801,844,815,864,831,882,843,876,808,781,810,791,821,800,842,820,865,836,887,810,774,817,788,830,813,850,820,864,811,773,813,796,830,807,849,810,799,836,816,852,817,815,863,821],[169,287,297,285,296,408,438,405,441,423,452,429,456,425,454,423,454,431,451,424,452,435,450,435,450,146,502,523,713,751,696,739,706,752,708,756,705,748,711,743,698,755,709,755,709,753,716,766,360,715,749,703,752,711,753,726,773,716,771,725,761,718,763,722,767,729,773,730,780,461,630,661,635,669,642,680,674,691,676,710,658,694,674,702,667,707,682,712,458,633,660,638,672,646,681,648,688,659,694,664,692,671,700,674,699,472,628,656,637,668,639,668,643,676,660,689,658,688,670,692,492,633,666,621,654,643,672,653,684,656,693,659,696,485,615,642,621,656,644,672,645,684,666,693,488,623,614,631,663,632,670,649,679,497,618,648,639,660,644,667,501,638,666,644,681,506,645,681,517],[129,237,258,246,261,380,406,382,397,397,422,391,427,409,426,404,425,397,411,394,429,400,424,398,431,88,477,501,700,738,699,737,692,736,708,741,702,736,698,735,691,732,704,741,706,741,705,754,314,694,741,694,736,707,749,712,766,711,754,713,752,705,756,726,755,720,767,724,772,434,608,642,624,657,631,672,628,682,643,688,648,682,645,687,642,695,659,694,431,607,648,611,656,617,665,633,675,648,684,642,678,643,688,649,693,456,604,645,618,647,608,649,632,665,637,677,640,686,650,676,464,604,653,603,646,605,654,632,666,625,678,630,692,458,596,632,602,636,618,650,627,670,646,682,468,595,628,603,641,614,650,626,662,470,591,628,609,641,611,656,477,606,645,620,660,485,626,665,488],[176,288,292,376,403,287,296,412,434,425,448,435,462,433,452,438,462,436,461,430,452,437,460,431,460,149,287,300,502,526,701,738,696,742,695,749,698,743,698,746,694,737,704,747,704,756,706,752,324,716,752,620,643,626,659,640,663,647,676,639,670,639,674,639,676,651,673,660,681,356,686,730,694,740,707,753,711,749,722,765,721,764,720,767,726,761,734,779,460,631,656,647,670,658,681,651,690,670,701,668,704,668,703,674,709,464,622,664,627,664,643,668,645,681,663,699,666,690,668,692,495,614,652,630,657,637,664,652,680,655,692,663,693,490,616,650,626,661,634,659,656,677,666,698,502,624,645,629,665,645,698,662,681,498,615,636,626,660,639,666,502,640,659,649,681,506,645,671,520],[131,250,250,353,371,246,253,390,405,395,415,408,424,401,428,401,436,394,421,402,432,405,421,393,424,93,249,262,474,499,686,731,692,729,683,729,686,721,681,737,684,724,683,731,688,731,698,743,282,694,742,598,627,600,639,607,655,621,656,610,657,614,650,619,653,619,662,624,670,320,686,724,690,731,700,738,700,734,712,754,710,753,717,758,714,764,728,766,439,612,652,606,655,624,667,639,680,643,686,647,691,656,691,650,697,439,605,639,612,647,618,661,628,664,634,678,632,681,646,688,457,599,638,608,649,612,652,628,660,634,686,642,687,454,598,628,605,639,617,652,632,676,644,676,465,596,632,606,648,630,662,632,666,474,597,628,612,640,625,649,478,603,645,614,653,484,620,661,497],[181,299,304,386,414,375,403,283,299,422,450,432,465,434,455,435,461,433,461,439,454,430,466,430,456,146,304,301,299,314,501,525,698,732,684,737,690,731,692,727,694,728,688,728,694,738,698,744,317,591,621,710,745,625,654,650,660,646,682,655,669,644,666,645,665,644,669,658,683,323,684,730,616,645,636,656,630,665,644,674,643,673,649,670,640,675,656,682,357,693,721,696,743,691,742,713,753,723,768,723,774,733,764,730,776,475,621,660,636,663,645,673,651,683,668,692,665,696,673,700,485,617,644,626,664,638,673,658,685,667,696,672,691,488,613,653,627,657,632,669,656,674,668,694,494,613,647,637,662,649,674,659,683,513,618,650,629,656,639,676,511,628,660,649,673,511,652,680,522],[138,254,263,360,368,350,370,243,254,407,421,397,428,403,425,407,430,413,431,403,429,404,432,403,427,98,261,263,262,269,475,500,676,713,678,723,673,714,668,722,673,715,672,718,679,725,686,724,280,571,600,699,739,604,642,616,644,621,663,617,658,620,655,619,659,615,660,625,663,293,680,720,598,627,607,635,614,646,624,654,621,658,618,662,622,652,630,669,320,672,716,689,731,689,725,699,744,711,755,709,759,708,756,721,764,446,604,643,608,650,623,662,629,669,644,679,635,680,647,688,459,603,630,610,645,615,655,634,670,639,684,640,678,470,597,628,598,640,620,659,634,668,644,681,471,592,631,610,646,617,651,633,670,478,598,626,607,646,626,660,482,606,643,622,660,494,623,662,495],[171,272,288,372,404,366,397,375,400,295,293,416,441,415,442,420,448,423,437,422,452,418,445,414,449,131,294,308,304,308,302,324,501,521,674,720,675,705,662,711,668,708,673,710,672,715,679,712,324,577,602,571,601,707,746,631,654,634,665,628,659,625,659,632,661,636,654,634,660,317,564,590,684,733,609,644,627,652,629,660,626,665,638,669,634,665,644,666,317,681,714,608,645,614,646,626,659,635,660,633,668,617,664,631,673,348,696,727,688,722,693,737,705,750,731,768,714,767,726,771,468,602,645,619,654,640,668,649,696,663,696,666,696,472,613,632,624,658,639,670,651,688,663,692,482,612,645,626,664,645,676,651,693,481,618,644,626,654,632,659,498,635,661,653,675,497,643,683,513],[128,228,243,338,363,344,354,340,353,249,256,396,406,392,406,389,414,385,403,390,413,383,416,385,414,77,248,264,258,271,268,287,479,500,665,700,651,704,657,692,656,686,654,689,655,697,659,706,277,541,579,535,576,700,733,604,636,612,650,610,645,602,641,600,640,611,644,612,653,280,527,577,678,725,601,630,603,627,603,653,612,647,610,643,609,647,608,648,280,670,709,577,617,582,625,591,633,600,643,602,644,610,638,605,651,308,679,715,661,709,686,725,692,743,714,762,711,758,718,758,442,597,630,605,641,616,648,629,670,643,685,639,675,446,594,630,605,643,614,653,636,669,639,683,456,596,622,597,640,618,655,636,673,460,590,632,604,637,617,656,471,607,642,624,662,475,628,652,483],[159,272,286,369,385,360,392,357,390,368,401,280,300,409,437,416,427,403,424,401,436,416,447,420,444,121,292,292,305,317,316,322,326,335,496,527,645,681,644,672,633,675,640,676,645,684,646,695,314,557,594,568,587,573,603,698,752,623,659,611,652,624,648,622,649,634,649,633,653,317,546,567,562,584,694,737,624,642,628,657,621,651,617,648,630,667,620,659,316,561,581,672,716,603,643,610,644,623,652,619,652,621,650,624,652,317,667,710,592,627,600,633,612,638,629,652,628,648,628,649,338,667,710,674,720,698,731,703,739,724,762,723,767,461,610,646,624,657,631,667,650,683,660,690,473,610,648,630,660,640,668,652,684,471,604,639,628,656,636,666,490,629,666,631,662,496,636,678,506],[118,226,243,330,358,322,343,324,336,334,354,234,248,371,399,374,400,378,402,366,398,372,399,378,412,62,244,259,251,271,263,277,280,300,473,501,633,668,626,665,624,662,623,665,627,670,624,671,283,536,567,532,553,542,585,697,742,597,636,592,633,593,629,594,635,603,640,614,640,277,522,546,542,575,672,716,589,624,602,639,596,630,598,630,597,643,603,638,272,528,567,666,708,578,615,584,629,597,637,601,628,600,634,598,639,290,655,686,569,609,570,611,583,622,594,631,606,630,601,643,302,660,684,657,708,689,725,693,740,703,757,706,753,432,592,627,603,633,624,647,632,670,647,676,442,585,620,602,636,618,657,624,667,443,587,616,601,639,616,652,464,611,633,610,654,474,623,660,476],[163,276,279,373,398,360,396,373,383,370,409,374,403,282,292,404,438,402,436,406,436,411,432,417,431,123,295,298,302,314,310,327,325,349,355,367,501,525,618,652,617,649,612,655,616,652,623,660,312,553,586,552,579,582,600,583,609,711,764,629,653,632,651,621,650,625,645,625,662,320,548,567,566,584,569,600,712,746,630,655,625,651,617,651,622,658,628,660,315,552,581,566,604,693,729,605,646,629,653,622,662,633,657,625,665,331,565,596,676,719,601,622,618,642,623,653,622,652,636,656,326,672,700,598,630,617,639,619,648,626,668,632,654,344,671,707,686,725,698,733,714,757,727,766,461,606,641,629,653,642,671,658,686,470,618,639,624,655,645,678,492,626,663,642,673,487,644,670,493],[124,234,242,337,355,334,351,337,348,350,370,341,356,242,245,377,404,377,404,384,403,375,398,385,406,64,252,264,257,279,269,286,295,296,319,332,475,500,599,623,590,631,591,639,595,628,599,644,283,535,560,524,561,542,573,560,592,709,746,600,636,594,632,604,636,596,636,603,643,278,520,548,533,568,554,587,693,736,603,640,592,630,601,631,595,636,602,645,278,527,561,537,571,678,716,594,626,598,637,593,635,598,634,602,647,282,531,566,668,706,584,617,590,632,610,643,592,638,597,643,295,659,693,563,609,583,617,597,629,611,642,607,631,307,662,700,661,716,684,726,694,746,718,764,434,584,622,602,639,616,663,638,667,454,587,628,603,638,614,655,462,606,645,611,659,465,619,656,481],[168,274,290,374,396,356,396,369,391,381,403,372,395,370,392,275,279,413,438,408,435,416,432,417,442,122,289,302,302,319,308,332,338,343,356,374,382,401,501,523,582,621,585,614,591,616,587,617,317,562,584,547,590,573,595,575,612,592,630,714,763,621,655,627,661,633,662,632,663,313,532,571,546,585,554,599,571,616,722,766,625,654,617,654,622,651,623,651,308,550,568,565,586,564,600,720,737,626,653,623,657,627,647,619,658,319,563,590,562,595,688,728,623,639,621,660,626,654,627,654,328,566,590,680,724,602,635,623,646,632,666,625,660,330,661,708,594,622,613,644,615,654,635,662,343,672,708,691,726,702,742,713,760,475,607,641,623,661,638,666,477,633,663,643,679,488,647,674,501],[125,237,234,341,358,338,349,337,352,354,373,348,365,340,364,245,246,382,399,373,402,378,406,384,407,67,257,265,254,263,273,278,289,308,328,335,348,377,477,500,561,590,563,594,565,596,571,594,276,527,558,522,558,545,578,552,596,567,607,703,749,603,640,606,637,600,642,603,648,282,512,539,533,551,538,578,559,590,702,741,595,634,602,633,594,636,596,635,272,524,549,534,572,539,584,683,730,597,633,592,631,595,635,601,643,291,525,559,538,572,678,719,590,625,608,640,598,631,596,636,297,529,566,667,702,580,620,589,636,611,640,602,636,290,656,686,573,609,579,620,610,637,612,648,312,661,698,680,714,688,734,706,754,443,595,628,608,639,622,661,457,604,643,617,658,465,613,660,472],[161,272,285,364,392,372,391,372,386,379,404,378,401,378,402,370,397,278,282,396,427,395,437,397,436,126,302,309,306,316,306,327,332,344,367,376,383,410,418,439,503,526,546,584,557,582,553,588,323,555,582,549,580,550,598,578,620,590,620,599,616,717,757,634,656,631,665,634,661,324,531,566,552,586,562,603,583,609,592,621,713,757,629,656,633,659,637,666,313,542,561,548,573,560,593,579,610,718,751,623,651,621,648,623,655,330,542,580,557,592,577,601,694,738,626,656,627,656,627,659,332,550,584,560,595,685,726,624,652,633,667,630,653,338,560,580,667,717,606,639,622,653,636,662,337,665,696,600,630,608,640,616,654,364,673,706,688,737,700,735,468,631,661,651,676,483,640,678,499],[120,235,234,342,364,343,356,338,354,333,364,350,372,347,354,335,364,231,240,370,380,367,392,378,392,71,245,268,263,276,272,285,292,314,325,338,351,369,379,410,474,501,532,563,535,559,535,563,290,526,562,514,561,538,574,545,585,567,595,563,600,705,746,614,644,606,647,612,639,279,511,545,530,568,548,574,562,582,560,603,692,750,606,640,604,639,606,638,282,516,540,523,554,545,569,552,578,698,739,603,635,596,632,598,635,282,523,554,530,560,547,577,683,726,604,641,599,633,603,637,294,530,568,534,563,675,721,598,631,609,646,599,645,298,533,564,673,694,584,615,588,629,605,642,292,660,688,572,618,586,623,592,640,310,659,692,674,713,687,736,444,607,649,620,662,458,616,658,477],[158,270,273,359,387,362,380,354,389,375,393,375,394,368,404,379,399,358,381,276,274,398,429,391,429,121,291,296,296,317,312,328,327,346,360,377,388,409,415,437,454,468,501,526,528,558,529,559,310,563,585,556,577,567,586,580,607,591,618,587,617,580,613,714,756,633,659,628,661,317,542,568,554,589,563,598,571,613,602,626,589,615,715,754,630,658,631,654,313,542,564,548,582,566,596,579,595,587,615,714,752,617,660,630,662,327,540,572,550,582,567,587,574,607,711,748,618,646,617,651,330,544,585,565,593,577,603,694,745,621,650,639,653,328,550,575,555,594,684,728,620,650,627,663,328,554,588,675,717,607,631,624,659,331,667,707,606,624,614,641,361,688,731,702,744,482,642,674,498],[114,221,232,334,359,333,348,333,350,338,361,342,365,348,363,348,358,326,343,235,247,352,384,366,383,68,245,259,253,269,272,282,290,311,324,335,345,361,386,406,416,437,474,501,508,537,509,530,276,535,558,517,556,536,572,549,573,566,598,555,601,565,603,707,747,608,644,612,648,276,518,547,523,556,539,568,547,585,573,599,561,600,702,749,608,641,601,638,277,513,551,527,561,539,571,544,587,567,598,703,738,588,632,602,640,280,511,548,520,556,536,569,537,590,702,748,594,629,596,638,292,515,565,525,564,548,579,686,734,602,644,591,637,288,522,554,539,566,672,711,595,621,614,645,294,535,564,665,701,582,622,596,638,300,650,688,569,608,586,641,319,678,713,684,742,458,618,662,469],[152,265,270,362,379,358,379,361,384,375,407,363,394,373,402,370,398,358,382,365,379,270,285,397,415,109,291,294,296,312,306,321,328,345,355,373,384,405,409,435,443,465,472,492,501,526,530,553,310,552,587,553,585,560,588,573,602,586,615,588,606,595,609,594,618,721,763,632,654,304,536,559,548,582,566,590,573,611,576,615,588,612,588,619,717,753,625,668,305,546,563,552,582,558,592,576,602,584,610,590,609,717,763,622,646,319,545,573,555,582,566,586,571,596,589,623,708,745,627,660,324,536,561,554,574,563,593,578,607,712,759,624,648,330,550,580,556,589,564,602,696,740,634,655,329,552,580,566,586,694,735,612,643,333,555,579,674,717,612,642,337,680,725,598,632,365,710,741,493],[112,215,224,329,351,334,352,320,348,344,358,336,360,337,359,349,357,321,340,331,352,228,241,353,395,62,247,259,244,269,262,275,285,303,316,330,348,372,384,404,418,441,442,463,474,501,501,528,277,532,567,517,551,533,571,542,578,560,589,553,590,564,596,563,596,712,756,602,636,280,513,539,522,556,539,568,552,577,560,592,565,596,568,598,702,746,601,642,277,512,547,521,551,538,572,544,565,566,587,554,594,701,739,602,631,290,507,546,518,557,538,563,551,587,565,590,694,735,590,637,288,510,544,525,561,542,577,548,583,699,737,600,634,295,516,554,538,562,549,572,693,737,595,634,292,523,561,547,567,680,718,596,632,303,527,559,668,709,583,616,307,671,708,586,622,330,698,740,464],[148,259,280,355,383,351,379,353,378,360,388,372,398,360,391,370,391,361,388,355,378,359,387,272,278,108,284,295,294,302,302,314,321,341,354,376,377,401,413,429,447,465,471,491,470,499,501,525,304,556,589,551,573,559,601,568,600,586,607,589,610,590,604,594,619,589,616,723,767,312,534,558,550,569,561,593,566,606,587,607,579,606,590,612,586,617,720,750,314,544,563,549,578,557,596,571,600,594,615,582,614,582,620,709,756,312,544,568,554,582,556,595,571,599,584,609,587,613,712,748,326,537,567,555,583,562,590,571,606,599,614,711,756,318,540,568,545,578,564,590,577,604,709,747,329,545,579,557,583,568,596,699,736,331,544,580,568,593,689,728,337,558,592,694,733,343,696,738,370],[108,218,224,324,340,325,344,331,345,340,362,340,352,341,343,335,355,330,347,329,342,320,351,231,244,55,234,246,248,257,256,276,288,294,305,329,340,356,383,406,412,437,441,470,447,472,475,499,269,531,558,516,558,533,565,542,571,548,591,546,592,556,594,563,598,558,596,709,750,277,506,537,522,554,531,568,545,578,551,596,562,591,557,600,565,588,704,752,275,511,553,522,553,533,560,534,570,556,596,558,586,561,593,700,746,284,511,544,524,555,535,563,543,580,563,593,551,587,699,749,289,515,538,523,559,535,570,549,586,569,592,704,751,282,504,538,527,554,534,561,540,579,702,739,287,518,554,534,564,542,577,690,725,296,523,551,536,565,678,714,305,531,566,680,725,304,672,726,328],[182,534,565,656,696,680,720,672,713,686,722,674,716,681,717,674,716,663,701,675,707,681,710,681,710,179,640,686,676,718,683,720,676,723,686,717,688,717,683,724,677,710,690,724,690,723,696,731,498,835,891,839,884,853,905,862,919,881,935,877,931,880,929,877,925,884,936,892,944,823,820,854,816,858,819,862,830,869,838,881,826,875,833,874,839,881,837,890,815,808,847,805,845,812,852,818,862,834,875,836,874,838,875,833,883,813,794,829,798,824,812,838,818,861,837,868,838,877,835,882,806,782,827,785,832,803,843,817,860,836,879,837,874,805,778,816,793,842,806,850,827,867,836,885,799,771,810,788,832,811,854,826,870,805,770,814,787,833,805,851,811,803,831,803,854,814,810,854,820],[185,369,395,298,319,298,311,418,451,431,470,436,462,440,471,431,480,438,477,441,472,437,471,447,470,179,285,306,284,306,409,429,423,459,443,464,447,465,438,473,445,474,437,465,448,468,444,469,165,502,525,693,735,696,744,702,743,706,746,706,749,700,740,699,740,710,756,708,753,378,702,741,705,745,702,749,720,757,726,763,719,756,725,762,722,771,730,773,467,640,675,650,680,659,687,673,699,676,714,673,702,675,707,679,714,482,628,656,643,680,651,676,657,692,673,695,673,705,678,706,494,627,668,635,664,641,675,658,679,673,700,664,700,506,637,667,635,665,648,674,649,690,667,706,501,626,654,637,664,652,680,657,683,510,618,652,634,666,646,676,513,629,668,649,680,516,649,682,530],[154,326,352,253,274,260,276,389,413,406,423,405,435,421,431,421,442,422,426,406,431,413,440,415,438,138,251,259,248,258,379,400,398,421,406,433,414,440,416,442,418,438,415,442,413,433,411,442,109,475,501,691,731,693,730,686,725,686,731,686,731,688,729,690,730,700,734,699,744,326,699,736,697,736,698,743,710,756,709,750,708,756,718,752,718,758,723,772,433,618,654,630,669,633,677,648,681,661,694,656,698,662,701,668,702,451,612,638,619,659,629,664,637,675,645,685,638,688,659,694,468,611,644,616,653,627,662,637,672,641,686,647,691,478,613,649,608,647,620,660,628,674,651,694,484,599,630,607,644,633,666,636,676,481,588,632,610,649,625,662,500,618,639,632,663,500,626,674,498],[194,364,389,304,318,396,415,307,314,433,466,438,464,447,477,444,476,446,473,446,466,445,478,446,485,178,297,306,380,402,290,301,429,465,432,468,448,476,453,478,451,486,444,483,447,483,449,484,161,307,309,501,523,688,727,695,726,690,733,686,732,690,730,688,734,699,740,709,736,328,703,743,622,657,641,672,646,675,653,686,648,685,658,686,670,694,663,688,374,705,730,689,736,707,746,716,740,717,767,714,771,728,767,724,778,491,628,662,644,664,650,685,671,701,673,704,674,710,680,716,491,630,655,634,668,639,688,656,692,678,706,677,704,505,628,656,627,671,642,676,660,690,672,705,513,625,649,637,661,649,677,660,691,526,622,653,638,669,646,675,512,640,671,655,689,525,656,680,532],[156,332,358,259,268,358,380,266,275,408,432,401,440,423,440,417,442,423,438,419,438,414,440,422,436,132,248,264,357,373,255,261,399,424,413,447,421,439,410,442,420,439,423,444,415,449,427,442,116,265,269,477,501,672,711,682,719,687,720,673,723,687,716,676,726,686,722,688,729,291,690,731,610,640,611,651,628,666,640,668,631,666,639,658,635,675,638,674,324,676,721,681,730,699,745,700,739,716,750,712,760,707,767,723,765,457,611,650,624,649,626,676,642,676,656,689,654,688,655,702,464,604,643,617,644,625,660,635,671,645,693,652,688,482,604,648,615,656,621,663,640,673,643,692,484,601,635,605,645,625,665,641,681,485,594,634,610,646,627,665,501,610,644,625,661,500,625,676,514],[189,352,387,289,295,379,407,372,401,302,320,412,444,434,456,424,458,431,450,431,458,429,458,426,459,175,289,293,374,400,375,396,293,300,427,458,418,458,427,455,450,462,433,464,440,467,441,467,147,304,307,312,328,505,524,670,710,681,709,670,712,675,710,677,716,673,714,682,723,320,570,590,698,741,624,657,639,662,643,676,643,672,645,674,642,680,651,675,316,693,725,614,643,633,649,635,662,638,674,638,669,641,672,644,673,365,681,724,693,741,687,737,705,752,718,764,725,765,728,766,468,627,656,633,662,640,670,656,693,668,704,671,701,488,617,657,632,662,644,677,650,684,666,698,491,616,648,620,662,642,681,661,690,499,625,643,629,656,645,670,508,637,666,648,671,509,648,678,519],[151,325,345,248,253,368,383,346,368,260,268,400,422,395,428,403,424,401,419,398,422,400,426,401,429,140,247,251,341,361,346,358,254,267,397,415,400,427,405,422,402,426,414,428,412,429,399,435,95,256,270,273,289,476,500,715,696,656,694,663,695,649,696,662,694,662,700,667,705,291,541,576,697,732,608,633,612,640,626,659,615,651,620,646,623,663,622,653,287,679,718,584,628,603,642,611,644,617,660,613,652,618,658,624,665,324,665,714,686,726,682,725,692,739,706,750,712,754,722,767,446,607,637,612,643,620,660,632,668,650,677,644,680,459,601,634,612,653,620,655,634,672,642,685,461,590,624,611,641,620,660,633,670,479,596,628,612,638,624,658,483,615,639,632,658,492,626,663,491],[171,353,363,282,290,373,396,375,400,382,412,290,305,417,448,419,450,423,435,422,454,426,446,420,454,180,274,288,360,393,350,384,369,396,302,303,417,440,425,448,422,455,420,451,427,458,432,458,138,298,314,305,318,330,285,499,525,653,686,643,685,646,680,645,686,652,691,650,690,322,550,588,565,602,700,736,622,657,630,668,630,657,634,656,642,669,632,666,308,575,593,695,729,614,641,626,655,629,660,632,659,634,668,632,666,322,678,709,601,632,611,642,618,654,630,672,635,668,638,665,353,685,721,680,721,692,730,708,750,720,766,714,770,474,615,644,622,654,644,672,659,685,667,692,482,613,639,630,660,641,671,657,684,480,617,641,632,665,644,669,498,638,660,634,666,507,646,690,513],[137,317,332,240,258,347,360,348,354,350,372,249,258,393,410,390,413,394,410,394,404,393,418,398,419,135,227,234,337,345,340,356,346,364,248,258,391,408,388,404,380,415,393,427,398,422,400,429,81,257,275,274,281,290,304,475,500,634,671,633,664,632,674,628,671,631,669,610,675,281,529,569,554,576,690,733,599,642,610,655,610,640,606,643,614,649,615,653,274,536,572,674,717,592,624,597,635,620,652,606,640,613,647,617,644,279,656,702,582,609,586,625,594,634,604,651,611,645,602,654,319,666,711,675,705,683,721,698,747,710,762,720,758,444,598,630,607,640,616,661,637,667,652,684,450,588,627,605,640,613,652,629,665,453,588,627,607,640,619,653,464,619,647,614,658,469,618,661,487],[164,340,364,273,281,365,391,364,386,366,397,367,404,272,286,408,431,414,438,413,428,414,429,410,438,161,284,289,353,379,354,379,366,388,377,403,289,291,408,433,410,433,409,434,414,440,414,452,119,294,314,310,313,319,344,347,366,497,527,609,647,612,651,613,652,612,649,623,655,312,548,541,564,593,579,612,698,739,628,661,629,656,622,646,626,651,625,665,321,558,577,561,593,689,730,610,635,620,655,621,654,629,648,630,649,322,561,585,669,717,604,638,613,636,623,656,622,657,637,662,333,666,706,595,621,606,637,609,651,629,666,628,661,346,661,708,671,709,695,735,710,747,725,766,461,619,644,623,658,645,671,650,686,476,619,641,626,656,640,664,480,620,660,643,671,479,639,677,500],[125,305,325,230,240,337,352,330,352,346,363,336,350,236,253,386,393,380,399,388,399,385,408,391,403,124,229,246,324,344,318,337,335,350,341,364,236,254,370,393,380,405,382,402,385,411,393,409,65,254,269,267,280,291,306,314,329,473,501,592,627,594,628,597,632,593,629,597,638,275,523,548,533,565,548,590,685,737,605,637,598,630,597,633,597,636,604,640,274,516,556,541,565,677,712,593,622,596,634,596,632,598,631,604,643,281,533,561,657,692,578,623,584,622,605,636,600,636,603,640,289,652,683,563,609,570,619,590,625,606,637,605,645,308,649,691,660,705,686,727,692,741,710,762,438,588,627,602,634,621,651,622,665,446,586,624,601,631,620,656,460,596,634,611,654,469,620,658,478],[166,342,365,276,290,368,394,367,397,370,404,375,402,374,402,283,291,407,428,401,434,410,439,412,455,161,275,287,361,390,345,383,372,390,389,408,371,400,286,297,401,437,413,445,412,447,411,454,123,294,314,314,327,330,337,357,367,391,408,501,524,580,612,582,615,582,620,584,620,317,537,567,549,582,570,598,573,613,713,757,622,655,627,662,629,654,625,666,310,548,577,566,581,568,603,708,739,630,661,623,653,624,653,628,652,316,550,581,564,594,684,733,614,648,628,661,625,661,627,656,326,562,581,676,713,602,634,615,651,626,656,629,660,334,660,696,601,630,608,640,624,651,632,660,350,662,701,672,718,694,738,711,756,473,616,642,628,658,639,672,488,628,658,647,680,490,646,677,502],[128,316,321,235,250,336,357,341,360,351,371,350,369,349,372,244,251,382,399,380,398,375,404,391,412,124,239,248,330,343,331,342,341,355,348,367,347,364,237,251,384,400,383,399,394,410,390,408,69,251,269,268,277,288,305,315,336,353,373,476,499,563,587,560,592,570,596,567,600,277,509,547,523,558,539,578,557,586,702,749,608,638,596,636,605,628,600,639,273,523,552,541,569,547,584,681,727,599,636,597,641,598,631,599,638,291,529,552,540,575,676,710,604,625,599,638,597,636,598,635,285,535,567,656,700,583,627,586,625,603,643,607,649,294,664,697,568,609,586,618,601,636,614,645,312,654,690,670,713,686,735,704,742,445,590,631,606,637,624,655,460,603,651,616,653,463,616,650,470],[167,342,363,276,285,366,394,360,385,379,405,372,408,381,402,378,400,275,287,399,421,400,421,402,432,170,282,295,361,386,356,380,375,398,376,407,368,406,379,397,283,295,420,435,405,436,410,444,120,300,312,310,313,325,351,354,368,388,406,420,437,499,526,552,585,548,583,559,584,315,550,561,555,588,566,594,578,613,596,629,718,754,621,658,633,664,633,665,312,538,568,550,585,571,597,581,604,710,752,628,662,626,660,625,649,322,547,582,560,584,570,611,701,734,625,650,624,659,625,651,329,560,584,564,598,681,721,618,637,629,672,624,651,332,558,582,671,713,614,636,623,658,633,658,340,660,694,604,633,608,639,619,655,350,674,709,684,725,691,738,474,627,663,650,667,484,645,680,485],[129,308,319,234,246,338,358,333,351,342,366,344,365,349,370,339,369,236,250,372,396,367,391,376,407,124,237,244,326,350,334,345,341,359,352,371,349,368,345,360,243,254,387,397,391,404,396,406,71,260,271,270,284,290,304,320,326,349,372,388,413,474,501,528,559,529,560,534,563,271,509,546,534,564,544,572,561,586,563,608,702,743,604,642,612,641,611,645,272,512,544,530,553,541,570,550,584,707,742,599,633,597,635,603,644,282,502,549,529,572,547,582,679,727,601,640,592,639,593,638,292,527,569,536,570,678,705,592,633,608,645,601,640,302,529,561,652,698,586,626,601,635,612,639,303,638,687,581,610,576,632,593,629,315,658,696,668,716,695,726,455,607,637,626,655,468,614,664,472],[166,334,362,271,275,361,393,361,386,372,401,374,399,370,402,376,390,364,383,280,291,396,428,399,433,164,278,274,361,381,355,381,368,400,378,406,379,396,373,394,366,386,286,293,406,437,406,437,123,301,310,312,324,323,338,355,372,387,403,418,440,448,472,500,526,531,557,536,559,311,545,568,553,575,566,592,580,615,596,620,592,626,706,754,630,652,630,656,317,545,565,561,581,563,592,582,606,588,615,712,750,628,658,622,653,310,533,572,561,581,563,584,574,602,702,753,628,653,618,654,321,548,580,555,589,574,604,688,737,626,648,625,654,333,557,581,558,562,684,728,620,650,629,665,337,557,582,681,707,609,632,623,653,339,666,698,595,621,605,632,357,680,724,696,750,484,645,678,498],[123,304,325,224,234,335,348,334,358,342,358,354,366,349,361,338,366,334,357,230,243,372,396,378,383,120,233,245,324,347,335,341,339,360,351,365,350,364,339,363,344,356,244,253,382,404,381,402,75,260,270,266,274,284,306,314,329,348,368,385,408,415,441,474,499,507,534,504,538,272,513,551,533,564,544,572,559,586,567,597,565,607,700,739,607,645,607,647,277,519,552,531,568,549,577,553,591,561,599,695,734,602,642,602,635,284,511,538,534,553,530,569,550,586,704,729,593,633,602,629,290,530,558,534,558,544,570,685,730,594,637,597,638,298,525,560,532,574,680,714,593,631,604,650,294,534,556,661,697,577,616,591,631,302,653,690,567,609,575,615,318,676,714,698,723,460,621,657,463],[155,327,359,266,275,354,386,356,380,372,408,380,397,371,403,373,403,366,390,354,387,274,293,399,421,155,271,280,349,381,356,385,364,389,366,397,375,404,367,400,369,394,367,392,279,288,411,442,116,290,300,301,314,327,338,348,369,388,407,418,430,452,471,469,493,501,524,533,559,306,536,566,546,580,566,594,574,601,588,614,581,616,589,622,714,760,628,672,306,545,572,539,576,557,594,568,597,594,622,597,617,716,757,620,665,314,543,560,552,573,566,588,585,598,593,619,711,753,619,650,318,540,566,544,566,565,589,572,612,708,744,616,650,333,549,575,556,586,570,601,700,740,628,664,342,557,585,569,596,684,727,612,650,337,553,579,665,714,607,635,344,670,711,614,637,362,700,738,489],[121,305,322,222,236,336,344,331,351,341,349,343,357,344,356,340,362,338,343,334,352,231,240,369,381,114,227,233,327,338,331,340,346,356,351,360,355,364,338,358,335,353,341,356,237,244,384,404,64,244,266,260,278,286,300,309,331,351,371,380,404,417,440,443,466,476,500,505,538,275,512,542,523,551,530,566,548,581,555,594,562,599,576,598,702,748,611,643,277,511,537,520,552,536,570,551,585,562,592,560,589,706,745,599,636,277,511,539,520,550,537,572,554,592,564,604,698,737,593,628,282,519,549,520,557,538,568,546,586,699,744,600,634,295,525,552,532,573,542,582,689,726,601,643,300,528,559,539,557,667,711,586,628,302,528,557,647,697,575,616,305,669,697,588,625,334,688,732,471],[153,328,356,264,266,353,387,354,378,370,392,374,401,370,405,375,403,358,381,354,389,362,387,272,286,156,270,276,340,376,342,375,366,388,367,386,375,397,368,397,366,388,372,388,368,398,277,291,108,292,301,291,312,318,333,350,390,377,403,416,433,441,466,464,496,467,495,498,525,312,537,567,556,580,568,603,570,603,584,614,583,619,583,622,592,618,719,759,304,534,570,547,580,557,582,578,600,593,617,590,620,596,616,713,750,320,545,567,546,583,562,585,566,603,586,617,582,612,713,751,329,542,568,551,582,561,596,575,608,592,622,701,752,324,542,567,553,572,565,596,566,618,713,723,342,551,578,558,584,569,596,704,741,343,550,578,554,584,694,720,339,557,602,690,724,350,689,735,365],[107,299,306,220,223,330,347,320,340,342,358,336,355,340,360,341,354,333,352,335,350,335,347,229,244,104,220,228,319,330,317,337,340,347,347,360,338,357,337,352,339,361,339,352,346,364,233,250,56,247,256,264,271,277,295,310,325,345,362,380,400,416,437,441,462,441,462,475,499,276,514,542,523,561,532,556,543,578,563,591,556,588,560,593,566,602,702,750,272,511,545,518,556,531,569,542,574,563,599,564,585,562,599,707,744,278,511,543,521,557,543,564,550,578,565,594,552,597,696,744,283,515,545,521,554,542,567,547,579,560,591,694,735,288,513,543,528,556,532,562,548,584,702,740,298,517,548,522,563,540,574,686,722,293,520,550,532,562,670,712,305,540,568,681,724,317,680,718,329],[188,541,575,534,562,661,698,677,717,690,714,688,721,684,712,685,716,667,702,674,704,670,709,667,718,189,539,566,644,680,677,707,683,720,683,723,680,722,687,718,676,721,683,724,696,720,688,723,177,622,674,672,709,680,709,678,719,688,725,683,723,685,729,689,728,694,725,688,724,502,822,873,837,888,851,901,864,918,884,934,872,928,875,926,884,939,888,935,815,817,862,816,862,815,862,826,863,834,875,827,876,838,880,845,884,813,796,843,802,846,812,851,814,855,836,877,835,879,842,890,817,790,832,793,832,803,849,821,862,836,885,839,886,811,784,824,794,827,807,848,816,869,841,885,808,780,820,791,840,807,856,826,870,804,770,808,791,829,805,852,808,794,835,814,853,812,818,855,821],[214,390,410,386,399,322,328,316,327,444,464,444,469,452,477,463,489,460,478,457,482,455,482,463,488,193,370,392,314,314,316,320,436,473,454,478,452,480,468,488,469,489,458,482,464,487,466,494,180,298,301,297,310,430,459,450,471,452,477,463,491,450,491,455,487,464,488,463,486,178,500,526,697,724,689,729,694,731,699,740,688,727,706,731,698,736,704,742,394,699,741,698,744,704,746,718,766,720,760,717,753,726,765,733,770,484,647,670,652,681,660,687,666,706,682,708,686,711,686,714,507,634,667,646,668,658,684,671,700,688,708,688,712,507,634,667,645,671,653,687,664,696,680,706,522,631,668,647,674,654,689,659,697,524,631,658,645,672,654,678,520,634,680,654,681,530,660,688,535],[170,359,371,348,366,274,294,278,290,416,442,421,434,431,455,434,461,432,459,430,447,429,458,433,450,160,339,358,270,276,270,280,410,423,433,454,433,452,429,461,434,455,432,453,441,461,442,463,146,259,264,257,269,410,424,412,431,459,452,433,453,439,454,432,449,434,458,433,458,127,474,500,680,712,685,721,671,725,682,724,685,723,685,720,688,720,696,737,350,681,727,698,732,694,735,714,752,708,746,709,752,718,755,717,760,459,632,663,633,668,642,673,650,690,670,698,668,696,665,709,478,614,653,618,661,638,664,623,686,654,695,664,698,482,612,650,624,661,635,666,638,680,654,697,496,618,655,610,660,628,677,633,677,504,604,635,616,649,629,668,505,610,652,628,665,512,622,672,523],[206,369,398,365,396,295,306,382,417,316,339,430,457,435,470,445,469,443,459,447,472,440,470,440,469,195,365,376,306,310,384,402,316,322,438,458,434,467,454,467,448,470,446,477,452,478,450,478,184,295,303,378,390,302,303,435,446,436,467,451,477,445,466,447,467,454,477,444,477,163,303,320,501,528,668,710,673,710,676,716,676,706,670,718,676,718,672,718,317,698,737,625,662,630,661,645,662,645,674,645,686,648,681,655,685,383,684,726,692,738,707,748,708,750,718,768,713,764,708,762,477,642,661,639,684,649,677,657,694,682,711,670,704,498,639,661,637,664,645,679,663,683,676,708,500,621,649,637,671,651,680,667,691,506,621,653,634,664,641,685,529,641,672,650,682,523,653,676,529],[168,344,352,345,356,261,261,360,382,270,282,404,423,416,430,411,447,410,436,415,439,420,440,417,435,155,331,343,260,269,355,373,267,275,416,425,416,432,415,449,414,432,411,444,418,444,431,446,142,255,264,343,360,259,268,398,424,407,435,418,442,412,436,425,436,420,449,420,439,112,276,288,472,500,661,697,657,698,664,692,656,701,658,704,667,703,660,710,291,683,730,603,637,610,647,620,658,626,665,627,663,627,668,635,680,328,680,713,677,726,694,737,694,737,709,745,711,754,708,756,464,608,648,616,660,632,670,644,674,653,693,657,692,470,603,641,609,647,624,673,638,678,643,693,473,601,634,626,653,626,670,633,672,484,595,637,609,649,620,648,494,604,656,628,659,503,626,674,510],[196,357,384,352,380,299,310,376,404,399,420,306,319,438,442,427,450,431,453,428,456,442,457,445,468,188,358,369,293,300,364,393,391,399,306,328,431,446,446,462,438,452,437,461,434,461,439,469,181,298,302,359,389,376,392,300,310,421,452,430,461,434,456,434,456,434,470,432,468,149,311,315,332,339,500,525,653,677,647,687,648,680,649,689,656,692,658,687,322,571,589,695,731,617,655,628,662,644,671,644,668,648,679,643,676,330,679,723,612,648,625,648,628,667,649,671,650,673,644,677,371,680,719,694,736,691,736,707,740,718,765,716,762,471,626,651,631,662,648,680,662,690,677,699,492,617,656,632,663,649,690,663,688,491,615,645,626,659,658,671,504,637,667,641,677,522,651,678,521],[154,331,349,330,351,258,267,351,374,378,382,263,272,399,413,404,425,398,428,402,424,410,433,416,432,152,320,328,247,262,344,365,356,370,263,284,400,413,401,422,397,426,402,432,410,432,407,432,138,251,257,328,349,343,367,264,267,388,410,402,422,406,428,408,428,406,434,397,444,99,271,279,290,303,475,499,638,673,634,674,628,668,634,672,643,674,645,676,285,546,578,685,719,596,642,613,650,602,658,617,658,623,656,621,664,289,672,702,591,625,589,632,605,642,616,657,625,659,614,662,333,668,698,684,721,672,719,690,743,698,753,714,753,451,603,646,610,648,624,656,636,676,642,668,467,595,630,602,649,618,658,640,676,468,591,617,599,640,626,655,477,613,656,614,664,496,625,664,491],[181,357,378,345,370,296,298,377,401,378,408,386,404,286,302,426,441,417,442,420,449,428,453,428,455,181,326,372,289,300,370,386,373,397,376,411,288,307,429,441,417,438,429,453,427,448,434,455,170,280,290,354,372,361,388,378,401,302,315,427,443,422,439,420,441,426,452,430,457,136,306,329,327,343,347,362,500,526,623,657,622,652,624,651,623,656,624,664,325,559,590,574,604,694,731,627,652,633,665,633,675,628,651,641,666,327,565,589,686,718,620,643,622,648,639,660,638,664,638,669,334,674,704,609,617,619,646,631,655,634,663,631,662,364,683,718,674,714,686,734,699,741,722,764,478,617,646,630,660,644,678,657,684,484,613,642,622,656,644,668,483,625,660,644,673,495,643,679,507],[142,326,332,316,342,240,257,343,357,359,380,355,373,252,262,396,416,389,407,392,413,387,414,396,425,137,309,318,251,266,335,354,348,373,358,376,254,264,384,410,391,418,387,415,389,423,394,422,131,243,244,325,334,338,360,343,358,261,263,387,414,387,414,385,414,399,419,397,422,82,269,275,290,302,323,327,474,500,602,637,597,638,597,641,600,642,599,642,277,534,566,547,577,687,726,605,648,607,648,609,640,604,642,611,651,290,529,578,667,706,589,627,592,638,619,650,607,644,613,652,292,657,696,584,620,581,622,592,636,608,648,613,651,322,663,708,658,705,681,728,695,739,715,755,455,590,625,607,640,616,649,632,668,452,588,631,596,635,624,658,467,607,629,610,657,482,625,667,491],[172,349,361,341,366,279,292,365,396,384,397,372,389,377,403,286,293,407,430,406,432,414,449,423,445,168,324,357,278,288,356,376,371,397,372,398,370,397,278,298,408,440,398,427,424,440,413,449,162,274,291,347,360,357,374,370,390,372,395,287,298,404,437,404,433,412,445,416,437,116,301,318,324,336,353,366,377,398,501,524,585,613,580,613,584,614,584,615,320,539,574,555,585,565,607,697,735,624,656,619,651,628,656,627,660,319,549,574,564,592,678,724,615,632,630,651,623,648,627,652,326,557,582,676,702,605,631,612,644,625,657,622,661,328,656,701,593,618,592,635,613,644,627,662,357,654,705,682,718,696,727,711,755,469,617,638,634,651,645,664,482,622,653,643,675,486,643,666,499],[128,315,328,310,321,238,237,328,351,348,373,344,355,343,360,243,252,382,403,381,406,380,416,388,415,122,290,312,235,246,326,346,340,347,343,361,345,360,234,259,379,397,374,401,385,408,393,404,119,237,250,314,332,324,341,332,345,339,363,243,251,371,392,380,403,386,406,386,409,66,260,276,284,308,313,326,343,363,476,501,561,594,557,600,543,593,566,594,283,511,554,526,560,545,571,690,732,600,640,601,634,595,635,602,639,280,523,544,536,566,670,706,588,626,605,644,594,638,602,641,288,532,556,658,692,578,613,593,638,603,644,602,640,299,644,688,570,604,562,618,592,628,608,644,310,647,685,666,706,678,725,699,735,434,587,627,600,649,615,649,457,606,637,613,654,460,618,648,474],[175,349,365,348,366,274,289,371,394,388,400,384,404,380,399,376,409,281,294,401,429,406,431,412,432,175,342,352,279,290,357,379,374,388,379,404,375,408,375,405,287,308,411,439,412,435,421,438,174,281,292,352,369,357,385,370,390,371,402,378,392,282,298,408,435,419,438,417,444,128,312,315,324,344,352,372,378,403,415,439,499,525,555,585,552,587,554,590,312,536,563,557,573,562,604,586,600,711,757,624,655,622,662,631,655,319,546,576,555,583,570,602,698,732,631,658,625,662,632,657,332,553,582,560,594,680,720,620,651,629,656,630,656,334,569,588,671,702,607,638,626,657,625,661,350,651,704,604,632,621,641,630,653,362,664,704,674,713,703,732,474,622,659,638,672,487,643,675,503],[129,310,325,310,325,235,242,333,352,356,364,344,361,346,367,352,372,234,246,369,402,379,398,377,392,134,306,318,236,247,327,342,335,353,349,370,349,370,346,366,243,250,385,400,388,404,394,409,125,244,244,315,334,328,349,343,360,344,370,345,362,246,257,374,393,384,401,381,412,72,273,277,294,299,320,332,348,362,387,406,475,499,525,558,538,557,536,561,277,515,542,530,554,533,573,548,586,698,734,604,630,602,640,600,644,284,524,551,532,564,548,576,688,726,605,642,597,635,610,637,290,527,558,537,570,674,707,594,629,607,639,609,639,301,534,564,650,691,594,619,595,630,608,653,320,648,679,570,611,581,631,603,642,320,646,684,654,705,676,717,461,607,642,624,661,455,614,660,473],[165,334,348,333,366,275,281,370,382,379,392,375,402,383,396,374,406,370,391,283,293,396,430,403,428,168,326,355,280,283,351,382,362,390,383,402,383,399,383,398,371,394,285,298,412,432,410,443,167,275,282,342,361,355,380,366,394,378,403,373,404,379,396,294,300,411,424,417,440,125,294,315,330,342,351,366,376,403,420,443,445,475,500,524,525,554,522,563,316,542,568,558,581,568,598,580,606,595,624,702,748,626,655,626,655,311,540,566,555,580,564,592,581,614,703,748,623,652,631,655,325,548,577,556,593,570,595,701,732,630,658,624,650,331,556,581,556,592,683,717,621,645,634,658,337,564,580,675,713,611,650,624,652,342,654,689,597,622,611,636,362,686,720,699,732,482,638,663,496],[120,308,324,300,318,226,236,332,348,345,364,338,370,341,364,349,373,334,352,240,243,369,397,369,398,124,298,313,233,242,330,338,331,357,352,370,349,369,346,367,344,360,246,251,381,402,388,400,126,238,248,314,342,326,354,344,357,354,367,338,364,342,358,246,261,378,402,378,407,74,269,280,282,296,311,328,349,359,387,400,415,442,476,501,504,532,505,536,277,511,540,529,563,544,569,546,593,565,594,694,744,602,637,602,642,278,506,542,528,558,538,566,547,589,696,732,607,640,606,642,284,524,553,532,568,545,574,687,716,606,635,607,643,293,520,558,534,577,670,706,592,629,600,645,303,533,566,652,689,582,623,597,633,300,648,679,568,605,589,615,319,657,707,678,731,449,624,668,474],[165,346,360,338,353,269,275,365,386,374,400,368,396,368,399,374,404,364,387,365,391,280,285,394,433,164,333,358,274,286,360,378,366,391,370,403,378,405,378,406,367,396,370,392,283,298,414,435,161,278,282,330,365,358,377,358,386,374,403,371,395,367,388,370,393,286,298,408,434,116,302,312,324,333,344,357,377,400,416,457,448,462,475,496,501,527,524,556,314,541,568,548,575,566,590,580,606,594,610,587,618,708,762,631,655,314,543,564,558,584,566,596,580,606,588,611,708,749,626,659,321,540,563,558,587,561,581,571,601,700,750,627,650,329,554,576,563,580,565,597,700,732,630,656,330,548,568,561,581,686,721,623,647,341,554,590,673,707,606,636,354,674,712,614,642,364,698,731,493],[118,297,319,304,318,216,227,336,354,348,362,336,360,350,362,345,368,332,355,334,353,244,241,375,392,121,293,305,239,236,325,348,335,353,333,357,342,364,349,364,341,361,342,359,247,254,383,412,119,229,242,306,325,320,337,331,351,349,364,346,372,336,359,348,355,240,252,382,398,61,264,280,282,297,308,326,344,358,386,407,413,443,446,468,473,499,502,531,274,505,536,523,560,546,573,545,583,560,599,567,599,696,739,611,629,282,516,538,506,548,538,578,548,592,555,598,696,744,594,642,277,506,548,529,553,539,573,553,582,694,737,589,639,298,521,552,537,561,534,579,669,718,614,630,301,524,560,535,567,669,712,593,640,309,533,562,652,690,580,608,311,654,696,586,620,325,689,714,470],[153,336,350,341,349,262,265,356,382,373,400,375,388,364,391,371,397,364,387,362,393,361,395,278,285,159,318,341,266,272,344,370,356,392,380,397,372,398,377,404,363,394,369,399,375,399,280,296,163,270,277,337,362,349,378,368,385,375,396,375,400,367,389,370,393,372,389,281,298,112,296,304,328,340,342,355,376,401,416,434,446,464,478,494,476,498,502,527,301,547,563,550,564,554,593,568,596,581,609,585,616,592,618,709,756,316,540,566,551,581,562,590,580,617,585,607,580,618,707,754,322,537,566,547,576,567,591,572,612,584,620,706,745,321,539,575,545,574,568,588,572,605,698,750,331,551,574,555,592,570,597,687,743,334,540,567,560,585,679,718,344,567,594,680,729,350,689,724,372],[118,302,313,293,311,223,223,323,349,340,358,333,356,338,356,341,365,334,355,332,348,344,349,237,246,118,288,306,221,234,318,331,334,352,341,362,340,355,349,365,334,362,346,362,332,358,250,248,110,227,228,312,326,325,347,334,347,335,360,334,361,335,355,344,353,328,357,241,250,65,258,263,282,290,313,324,336,358,385,406,410,439,437,464,444,469,473,502,275,515,542,529,560,535,557,545,578,559,587,556,591,556,601,703,744,275,512,543,522,554,528,569,545,583,554,596,561,596,699,739,286,502,544,524,557,539,569,548,590,565,594,688,740,287,518,547,525,548,529,584,551,582,696,725,302,516,552,527,563,541,581,680,719,302,528,546,532,565,666,707,309,527,556,672,713,319,670,719,337],[189,539,578,545,568,536,564,662,687,678,722,679,720,679,715,674,723,673,705,668,707,669,708,680,714,189,542,569,540,561,643,680,683,720,684,728,685,722,692,728,687,718,687,723,695,723,686,725,185,533,567,626,676,684,713,692,726,679,726,690,727,688,728,683,723,694,723,696,728,185,606,650,683,709,678,715,675,723,680,717,688,723,684,723,686,726,699,725,500,819,872,834,886,852,905,862,914,868,928,871,929,879,930,886,938,820,818,860,820,855,823,862,823,861,832,879,836,883,837,888,821,805,840,806,844,800,845,826,859,838,882,839,886,812,789,827,790,840,807,850,830,865,842,889,814,780,818,796,837,814,848,823,871,813,773,824,794,834,809,855,809,794,831,809,848,817,811,855,822],[219,379,407,374,400,370,399,308,321,326,343,434,470,444,470,438,474,467,473,452,486,446,489,451,481,206,367,393,369,388,307,328,319,330,439,472,448,473,450,476,458,484,458,487,454,488,456,489,192,360,382,295,324,307,321,425,464,442,484,452,477,462,488,455,481,455,489,466,489,183,301,319,302,317,429,454,441,466,461,489,464,485,458,489,459,495,453,485,181,498,525,670,701,673,706,678,715,675,712,678,718,682,720,686,722,394,694,730,692,734,702,737,709,753,711,754,710,757,722,757,484,644,677,652,684,656,693,675,705,691,718,682,714,498,637,654,647,674,649,690,668,704,686,716,505,632,659,640,678,652,686,660,696,523,642,679,636,669,649,681,527,646,675,653,682,529,649,683,534],[186,352,371,347,370,350,368,266,277,284,303,417,428,412,438,426,449,430,452,432,444,430,444,435,451,169,340,352,344,348,279,284,286,291,419,433,419,439,432,451,439,460,436,449,437,453,437,447,153,325,346,270,279,275,282,407,428,423,444,423,448,432,456,435,448,428,463,430,455,138,259,273,263,270,411,422,410,434,426,446,437,458,432,460,432,464,437,458,128,475,499,651,690,662,698,662,696,663,699,660,701,668,704,670,707,358,688,726,685,724,694,717,699,748,698,742,705,750,710,757,468,614,660,627,669,637,673,648,685,666,695,664,705,473,607,652,622,660,640,670,651,686,655,705,483,614,644,619,654,634,668,634,677,508,611,653,615,650,633,669,508,613,647,624,662,508,633,656,520],[212,381,396,371,397,366,393,306,327,411,430,320,334,439,450,446,470,437,472,442,478,448,479,450,470,207,362,389,353,394,304,311,392,423,328,334,434,463,435,466,452,477,452,473,448,479,451,478,195,350,370,311,319,386,416,305,326,439,459,434,459,450,470,439,469,461,480,453,482,184,302,302,375,397,305,315,426,453,445,474,443,470,442,471,452,477,450,471,166,330,349,498,525,644,687,649,694,653,687,650,689,660,697,662,702,326,688,733,621,652,629,658,638,659,655,682,646,685,654,688,378,677,724,675,721,695,733,694,736,708,757,711,764,485,635,665,647,675,657,682,668,702,673,708,489,632,661,637,669,645,688,666,701,511,616,655,634,670,644,671,514,635,672,648,671,525,657,683,522],[168,336,365,342,358,336,357,265,286,372,393,279,296,400,430,412,441,410,446,410,429,416,439,424,440,167,328,344,330,345,257,269,355,383,284,292,396,429,414,428,427,446,418,439,418,449,422,447,155,320,331,264,270,357,372,271,283,407,435,419,431,415,447,419,432,424,448,420,444,138,256,268,338,363,269,281,396,423,415,440,427,446,419,437,425,440,436,440,114,299,310,475,500,629,666,634,668,632,668,630,676,645,685,639,679,294,678,717,590,631,603,640,620,650,626,663,630,660,637,667,348,665,708,668,714,689,731,694,732,702,750,705,754,450,612,644,617,657,637,667,644,689,658,698,472,602,644,609,645,628,659,637,682,494,606,640,615,648,621,655,488,609,651,623,661,492,625,668,500],[202,365,390,362,383,356,377,306,313,393,421,388,417,304,325,429,456,428,459,434,464,426,464,445,465,195,354,383,342,376,309,311,386,418,397,422,307,322,436,461,440,455,434,461,442,462,443,467,188,341,367,293,301,367,397,386,408,311,323,432,453,429,459,437,451,443,464,443,469,185,296,306,370,390,383,404,306,313,435,455,438,467,432,456,434,454,446,465,148,327,338,356,371,499,523,618,656,628,663,625,660,625,660,629,668,333,563,596,686,730,623,660,633,656,648,678,643,679,646,684,332,666,717,608,641,612,654,634,661,644,682,644,675,376,671,713,688,725,692,730,694,744,715,756,479,627,656,628,660,646,681,652,696,505,617,646,625,664,642,667,496,632,665,637,676,509,646,694,527],[156,332,347,328,348,339,342,260,269,370,379,370,383,265,278,393,420,403,428,393,425,409,431,417,424,161,319,335,319,333,258,275,354,375,357,385,271,284,400,416,407,431,404,429,408,428,404,440,148,313,323,254,255,351,358,359,376,270,288,397,416,403,430,408,423,406,430,418,431,138,254,265,339,353,345,358,269,274,393,429,396,427,402,431,410,427,407,443,95,294,302,313,334,477,500,602,634,599,637,605,637,606,637,611,652,290,545,572,676,716,603,641,616,640,618,662,623,647,621,659,297,669,694,588,618,589,637,608,638,618,654,629,657,344,653,695,666,712,672,715,688,730,708,748,454,596,636,619,637,629,668,638,676,476,598,623,610,637,620,660,480,609,642,608,667,493,626,665,502],[189,360,380,358,371,348,370,296,296,386,415,383,413,384,404,301,312,427,448,418,447,427,449,436,457,187,352,367,349,361,287,301,374,409,390,416,395,406,280,317,421,448,421,456,424,456,429,466,182,327,352,284,300,365,389,374,403,390,407,292,319,419,450,418,447,432,449,422,458,174,282,286,355,380,372,387,373,395,303,310,414,452,420,454,420,455,432,455,138,322,338,351,366,382,398,499,526,584,620,589,625,589,624,585,623,315,557,580,566,596,690,728,630,657,638,663,629,658,640,662,322,568,592,676,714,607,644,625,653,640,677,633,666,335,667,702,605,633,614,646,626,660,639,668,378,670,705,669,714,688,722,705,745,482,615,638,631,657,639,675,495,628,658,646,674,509,645,675,507],[142,336,337,319,338,321,330,242,259,365,370,357,378,357,375,252,267,402,414,394,412,407,418,406,428,141,312,325,310,320,247,256,341,367,356,371,354,374,263,270,390,422,405,413,398,435,400,430,138,301,319,260,261,338,356,345,365,365,378,261,273,396,416,394,409,403,415,400,426,137,234,248,338,342,338,350,348,352,265,268,400,414,394,407,394,417,404,422,86,285,304,306,332,344,366,474,502,567,590,552,599,568,601,571,600,285,535,557,547,579,673,716,592,637,614,651,611,651,610,644,292,534,568,665,704,589,622,602,630,614,645,611,647,293,650,686,577,615,588,614,598,636,615,659,328,658,693,656,697,677,720,693,733,468,595,628,607,648,621,654,459,610,642,622,654,473,612,658,488],[170,341,358,353,366,336,356,278,289,380,401,383,404,366,402,382,401,290,296,400,425,407,432,406,434,174,341,352,330,357,277,289,365,400,377,403,371,402,374,403,282,302,413,433,416,434,406,444,166,324,339,283,284,362,383,371,380,380,404,370,401,290,293,412,439,406,438,407,437,166,280,292,355,374,356,398,367,393,376,400,289,302,405,435,406,440,419,441,132,325,337,347,368,372,401,416,433,502,525,550,588,556,588,548,584,312,544,570,560,582,574,607,687,727,625,656,622,655,624,654,321,547,574,556,581,669,713,620,640,627,660,626,652,335,557,576,668,693,602,632,613,648,629,660,340,656,700,595,626,620,629,626,644,360,660,691,665,712,668,721,487,627,655,636,676,483,636,664,493],[128,307,319,308,320,307,317,238,234,351,360,347,362,342,360,346,366,244,261,370,396,376,400,385,405,135,306,316,299,314,232,245,340,357,348,363,347,363,347,367,249,261,385,402,390,413,385,404,125,286,306,233,250,326,340,340,348,345,366,339,364,248,258,385,401,378,408,383,401,125,240,254,326,335,329,342,335,352,344,360,243,266,376,406,390,401,391,413,72,288,301,313,332,337,363,380,410,475,500,517,560,532,559,532,568,282,519,552,533,560,549,578,672,720,597,639,603,636,601,641,290,523,549,529,562,656,700,589,623,598,642,605,642,290,518,560,646,682,580,613,592,631,605,639,302,637,673,574,608,583,618,595,629,325,640,676,660,699,677,725,451,604,638,617,650,458,618,657,471],[169,344,365,341,364,338,362,276,279,372,397,380,402,377,390,378,414,377,400,284,290,401,434,409,442,170,336,358,332,353,277,291,367,398,381,399,378,407,377,408,377,397,286,297,410,446,418,442,164,327,344,286,288,362,387,368,394,379,404,377,403,372,401,288,305,403,440,410,436,173,283,291,355,373,356,383,367,391,381,399,376,396,298,306,413,433,415,444,129,322,340,350,370,375,395,411,448,450,483,500,524,522,563,528,563,315,533,559,547,582,569,598,581,609,700,740,621,653,626,653,315,550,575,561,590,570,595,691,728,626,645,629,654,328,554,578,565,588,675,712,611,644,627,656,337,558,591,661,702,606,630,621,646,337,649,688,606,636,603,636,357,666,710,681,724,487,642,663,495],[128,314,332,306,321,305,316,235,240,342,366,346,368,346,370,356,359,338,351,245,262,379,397,370,400,132,308,322,296,309,226,241,332,356,348,372,338,365,343,369,349,365,248,262,391,406,386,414,126,298,302,229,240,331,348,341,360,346,368,347,359,338,367,250,266,383,411,380,415,124,247,248,314,337,332,342,325,360,349,366,345,370,252,256,382,401,384,409,71,282,299,311,324,340,363,375,401,412,440,476,499,503,533,505,535,272,513,537,514,556,536,572,554,585,682,727,605,639,589,638,288,520,548,533,564,541,579,673,721,606,640,606,638,299,531,562,536,570,664,696,583,630,606,650,302,530,565,648,691,579,610,589,613,317,641,663,580,613,583,624,333,652,699,672,720,467,608,656,468],[166,340,368,330,357,332,359,270,278,374,398,368,406,377,393,372,400,375,395,371,392,287,283,403,426,163,329,357,332,344,267,292,383,390,379,400,367,402,373,405,379,404,383,412,283,299,418,439,162,325,338,272,293,359,382,366,387,371,402,376,402,374,403,372,398,284,294,404,438,162,274,282,352,373,352,377,372,396,372,405,378,398,374,398,292,304,408,444,121,318,332,340,355,375,394,411,432,444,468,478,497,498,525,533,555,320,536,562,547,573,571,588,582,612,584,624,698,741,627,664,314,533,566,544,584,564,587,585,608,693,742,616,648,335,544,572,555,581,573,596,691,726,627,654,332,558,582,560,586,672,711,609,650,340,554,587,663,706,612,631,347,661,693,606,634,365,682,726,502],[125,314,315,300,322,302,317,227,230,338,357,350,365,343,368,347,364,338,352,346,359,238,256,373,391,123,300,312,297,309,236,244,336,362,350,366,343,366,353,365,352,368,340,368,237,261,380,407,125,293,299,233,233,328,342,332,353,352,369,347,369,340,365,342,358,243,255,384,401,120,235,245,319,332,321,344,349,358,344,365,338,360,345,363,238,261,382,399,70,280,296,303,315,340,363,376,399,412,441,437,467,475,500,499,530,281,508,544,529,558,545,562,548,580,561,598,688,727,605,635,282,504,544,524,554,532,568,554,584,685,730,609,634,298,521,546,528,565,545,574,677,712,604,644,299,520,554,537,568,658,702,588,624,315,535,559,651,689,577,621,312,656,684,582,618,332,672,717,468],[159,338,369,332,359,329,353,268,278,380,392,362,400,371,394,371,394,370,391,378,383,362,394,280,290,166,326,351,326,350,270,279,369,395,376,402,375,398,381,399,377,402,370,398,378,398,291,300,167,321,332,276,277,356,376,368,383,370,396,372,401,375,397,378,398,380,401,287,293,155,267,283,345,365,357,379,359,389,373,398,369,400,374,398,369,389,291,297,114,314,330,338,361,371,389,415,429,452,468,472,495,467,501,499,525,309,542,563,554,579,563,593,576,603,598,620,582,621,704,742,320,539,577,546,578,574,597,571,604,587,621,707,735,318,541,563,556,578,559,592,572,608,702,740,335,553,571,552,585,573,592,686,725,337,554,577,559,595,669,715,341,555,594,677,718,356,677,723,374],[118,306,320,301,324,304,309,220,228,345,354,339,357,348,354,346,362,340,352,340,352,340,354,238,250,120,301,307,291,303,224,236,327,349,348,361,335,353,342,357,345,365,338,360,354,369,244,254,117,286,298,222,235,327,335,334,356,351,357,348,362,351,356,347,365,335,364,250,256,116,230,240,315,320,324,336,334,349,340,361,345,356,345,358,345,371,244,256,62,278,293,298,321,332,348,377,400,416,432,437,465,445,470,475,500,272,510,540,518,550,540,566,543,577,559,596,557,600,692,736,283,507,541,522,552,546,572,549,586,553,597,687,731,282,506,540,524,550,538,565,550,578,689,728,291,523,556,529,566,548,578,673,716,304,526,555,531,565,654,697,316,535,560,660,701,313,664,709,332],[195,530,550,521,560,530,555,530,549,661,704,670,717,682,711,668,708,655,698,673,704,668,704,665,707,189,528,544,536,561,525,554,652,692,683,710,669,718,681,709,670,718,673,720,681,710,688,716,187,518,549,509,543,635,676,678,721,678,719,684,709,678,718,690,716,686,723,680,722,187,516,541,617,672,670,711,673,710,681,720,681,716,689,722,686,718,684,725,180,606,642,674,706,667,710,685,715,688,718,685,728,680,719,691,728,500,819,874,833,884,850,895,861,912,878,933,880,934,880,935,811,818,858,821,855,822,858,828,868,848,881,840,886,818,798,842,798,842,804,852,825,868,843,890,817,790,830,803,834,812,855,826,871,812,776,822,791,828,812,850,817,797,843,824,856,809,811,854,814],[223,378,401,391,395,388,409,378,409,325,342,323,340,438,460,456,475,437,475,456,479,456,490,450,482,220,372,396,378,395,379,396,304,321,333,345,435,469,437,475,458,477,460,489,455,493,456,489,206,372,388,372,389,319,335,322,344,439,467,450,471,453,498,467,488,457,489,455,489,204,353,368,316,320,321,328,435,471,451,477,454,476,460,494,457,484,460,488,182,306,312,312,322,437,455,443,465,456,481,467,487,464,492,458,490,181,501,524,649,690,647,685,653,686,658,697,659,694,652,699,386,685,726,683,719,681,731,703,747,704,752,708,746,486,638,670,648,678,664,686,668,704,685,712,506,637,660,639,675,659,684,662,700,514,640,656,640,668,647,674,538,651,685,659,678,524,656,676,535],[185,348,352,356,363,359,371,359,368,280,302,292,312,408,438,422,440,412,443,426,455,424,447,423,454,179,344,355,336,361,340,357,273,285,290,314,404,434,410,441,420,446,428,452,427,454,432,456,171,344,362,338,350,276,286,291,298,415,439,419,448,418,451,428,462,440,461,433,457,157,330,337,274,287,277,298,411,422,426,456,424,449,434,458,436,462,434,457,140,270,274,267,283,404,428,420,443,430,448,441,463,438,456,437,460,126,476,500,635,671,636,675,633,669,634,678,616,682,638,680,345,667,717,677,713,672,711,696,737,685,746,698,734,462,613,657,629,656,647,671,649,682,663,700,474,607,655,625,660,628,670,653,689,484,611,638,614,641,621,664,501,625,670,628,667,505,626,661,511],[203,370,399,366,402,374,392,369,399,314,321,395,430,315,320,440,457,439,466,437,465,444,464,446,475,210,363,382,373,388,364,392,312,339,408,431,324,332,438,462,443,470,450,480,445,482,446,476,202,357,381,356,376,307,314,399,418,331,343,436,460,440,471,439,466,448,480,454,479,198,348,367,308,323,388,409,314,333,436,464,445,468,445,472,442,494,449,478,180,308,315,379,410,314,324,434,453,440,467,453,486,453,471,446,482,167,351,365,499,525,618,652,621,654,625,658,632,657,635,667,336,680,714,621,644,626,652,637,665,653,682,652,681,378,665,709,673,720,696,732,693,731,704,751,488,628,657,638,659,649,681,667,687,501,624,649,638,664,642,677,514,631,659,644,686,529,640,701,526],[173,351,359,342,362,352,362,346,364,271,287,375,392,273,297,411,432,411,433,410,419,410,440,414,443,172,332,353,336,353,337,350,278,291,373,391,281,294,405,428,408,440,418,444,418,443,418,445,176,320,341,336,351,259,274,368,391,283,308,406,425,416,428,419,447,427,450,417,443,154,319,332,262,274,352,375,282,294,408,434,417,436,420,442,416,452,419,446,145,266,276,348,369,270,284,404,421,418,440,418,444,427,442,421,450,116,310,329,475,500,595,637,601,640,609,642,611,641,616,655,290,668,704,591,639,602,642,611,655,632,664,628,674,347,662,692,649,697,674,723,682,727,693,742,463,605,639,615,654,631,662,646,682,470,604,634,605,646,627,660,494,613,651,627,670,498,629,661,502],[201,363,383,367,394,365,394,363,387,304,318,393,419,390,420,307,321,426,447,434,461,434,458,441,468,196,361,392,357,382,355,377,307,314,400,430,399,416,312,322,423,453,433,464,434,462,444,465,188,349,371,350,374,313,318,389,414,396,422,316,324,430,453,437,470,434,463,438,457,188,340,358,293,306,375,411,380,411,322,330,430,452,436,462,434,462,438,472,177,298,306,371,397,377,397,310,327,426,451,431,464,429,455,437,460,150,353,364,382,405,502,525,586,621,594,627,591,627,598,634,328,569,594,674,715,615,652,628,660,642,666,644,672,334,661,693,606,634,616,651,624,660,641,672,370,659,698,671,715,678,716,686,732,490,622,646,631,664,647,680,506,632,653,643,670,501,646,671,516],[152,337,351,340,360,331,347,339,341,267,272,367,381,368,381,265,282,403,416,402,427,411,424,407,433,161,332,351,332,339,327,338,263,275,367,389,378,383,272,281,399,423,413,431,414,437,405,437,162,324,336,315,324,263,275,358,375,362,377,267,290,389,418,416,431,412,428,415,436,149,313,327,252,263,352,368,357,373,276,294,398,424,408,434,404,422,410,431,138,263,283,342,360,340,359,272,284,393,422,402,428,412,438,407,434,105,315,325,348,363,475,500,569,598,572,612,579,618,559,609,296,545,571,666,708,595,627,601,646,617,648,620,654,301,652,689,589,622,597,636,607,641,617,655,333,654,686,664,709,660,704,683,722,465,604,631,605,640,616,658,473,608,641,623,653,480,616,659,485],[185,359,387,355,375,360,377,351,372,290,300,390,405,377,409,388,416,301,311,412,442,421,430,423,450,181,357,368,355,372,349,371,295,308,388,417,382,410,377,410,306,317,426,463,429,449,429,457,182,343,363,329,358,295,308,382,406,387,416,386,396,299,321,426,450,415,446,434,450,186,334,350,292,306,372,395,378,408,385,412,302,312,419,453,420,452,420,455,177,291,301,362,380,367,384,370,408,313,328,419,446,418,452,424,457,139,347,367,379,399,414,431,499,525,556,585,558,594,555,591,318,552,580,563,591,678,716,620,647,627,662,637,662,329,556,585,662,698,610,646,627,650,635,659,334,652,683,600,629,610,636,624,644,366,657,697,665,699,669,706,487,627,655,643,670,498,646,668,507],[140,326,342,324,337,326,347,319,334,248,258,356,372,352,366,355,379,256,262,386,412,384,407,384,407,145,324,335,319,336,317,331,250,257,362,378,358,368,361,375,262,274,393,410,404,413,401,420,139,308,325,299,324,248,261,346,366,364,378,352,375,266,273,398,414,402,408,397,422,145,294,310,250,263,333,358,352,362,368,374,268,274,386,411,394,408,383,417,139,247,252,341,350,344,360,343,363,273,280,391,415,388,420,397,423,88,314,331,346,360,379,402,475,500,527,563,533,567,537,570,291,520,568,535,572,666,704,599,627,615,646,610,642,301,530,564,645,685,584,624,601,638,606,643,310,636,674,581,614,584,629,600,637,331,642,686,644,696,657,702,464,605,639,607,644,484,614,652,477],[161,348,357,339,352,341,358,335,362,270,281,374,400,376,402,377,396,359,396,282,294,395,426,408,433,167,340,363,337,366,332,356,269,286,371,406,377,390,379,392,374,396,289,298,411,435,416,437,163,327,355,327,344,282,294,370,396,377,395,372,401,375,399,298,296,407,436,414,435,164,318,330,282,291,351,384,361,381,370,395,369,395,297,304,412,445,415,446,168,289,302,345,374,352,382,362,386,375,403,300,318,416,439,402,441,122,342,366,375,391,406,428,444,473,501,528,523,554,529,560,306,541,566,555,574,567,599,678,716,621,645,614,650,320,539,572,555,590,666,700,611,638,630,651,337,551,579,642,684,602,635,619,646,336,640,681,587,612,603,628,363,661,706,670,716,484,632,658,493],[122,313,327,313,322,308,318,302,322,225,237,342,355,343,360,343,358,338,354,242,247,368,396,372,395,131,311,323,301,322,308,321,232,238,348,369,347,357,340,360,344,359,252,252,377,410,391,407,132,305,315,296,311,236,250,328,349,344,364,339,362,350,360,247,271,381,396,383,406,123,292,302,232,255,329,343,340,350,349,356,342,358,252,268,389,402,393,404,121,246,258,318,337,322,338,337,349,344,361,260,273,376,402,380,404,67,303,322,342,358,373,388,415,437,472,501,501,525,502,534,274,516,542,519,558,537,566,669,700,598,638,601,625,291,524,545,527,562,647,685,588,618,598,636,301,521,554,649,670,579,612,582,624,300,623,659,566,596,578,615,318,646,685,668,699,457,613,655,462],[167,342,372,342,362,339,355,341,359,270,285,376,398,367,393,376,402,367,383,366,393,283,297,397,437,170,342,360,334,368,335,365,286,289,372,394,378,408,374,402,373,401,382,406,292,306,413,449,162,327,362,326,346,275,288,365,389,378,400,375,403,376,408,372,407,289,302,418,448,165,314,332,287,289,350,375,362,393,377,406,375,403,377,393,292,304,420,439,164,290,295,354,370,357,377,371,389,378,397,379,395,302,312,418,443,120,341,384,368,389,409,421,442,467,477,499,500,524,528,557,304,532,554,545,574,563,583,572,600,686,731,618,644,323,540,563,548,583,570,603,672,712,628,645,327,548,572,556,583,668,704,617,635,336,543,580,646,690,604,625,350,654,688,601,637,360,665,710,492],[121,310,324,313,329,308,320,310,317,228,237,343,350,348,359,338,362,338,353,341,354,243,251,375,398,122,312,314,310,319,304,320,233,242,352,370,348,362,346,369,344,367,354,371,255,265,387,413,123,295,312,290,312,235,246,332,355,343,364,339,364,341,361,347,367,247,263,388,403,121,289,304,236,246,327,341,336,356,352,362,338,365,348,360,251,256,382,404,117,243,250,315,340,321,353,342,349,345,364,347,361,259,273,379,400,66,306,318,343,359,373,382,406,433,446,475,476,499,501,535,276,498,535,524,546,532,564,543,571,677,715,600,629,282,511,539,524,554,544,568,660,703,599,628,290,519,544,532,565,641,682,580,624,296,527,554,636,664,580,611,306,622,676,574,623,330,660,704,476],[162,336,369,342,358,337,359,336,360,268,286,363,392,363,397,362,399,366,395,365,385,370,392,285,287,171,330,350,332,354,327,353,274,282,372,399,364,403,373,404,373,397,383,404,373,410,288,301,165,322,341,320,345,272,278,362,398,363,397,373,402,375,407,382,398,381,407,287,304,158,314,335,292,292,356,386,362,387,373,398,368,390,369,394,374,406,293,301,163,278,290,346,363,354,379,360,390,376,399,374,411,373,395,296,308,120,348,362,365,384,402,441,445,463,471,498,472,499,502,522,315,529,555,550,572,565,581,575,605,588,609,686,733,320,530,558,550,571,563,586,570,599,694,737,328,549,558,547,592,564,594,676,716,332,544,574,558,585,659,701,342,555,581,674,705,349,659,703,370],[117,309,325,307,326,307,322,304,318,222,230,340,346,337,344,343,362,336,349,340,355,340,340,241,252,123,308,324,308,312,300,312,229,242,351,357,344,357,346,364,341,363,349,362,340,363,252,251,118,294,306,284,298,234,233,335,346,338,360,344,365,349,362,346,371,350,372,249,256,110,286,291,238,244,323,338,331,348,348,359,343,363,345,358,341,358,246,261,112,243,243,312,333,316,341,338,356,346,359,347,362,336,365,258,264,65,301,320,333,345,366,391,409,430,440,466,443,465,478,500,282,503,530,514,541,525,562,547,576,558,589,674,717,279,507,534,520,551,534,567,550,575,672,720,287,512,543,529,556,534,574,662,699,296,523,548,529,559,645,692,308,526,566,642,690,319,656,692,331],[198,535,560,524,554,529,551,528,561,542,571,654,693,667,708,673,716,656,694,674,698,669,699,661,698,189,508,536,505,543,515,541,532,558,662,698,674,705,672,703,668,706,670,708,676,712,674,711,194,506,532,509,536,532,554,647,681,667,711,674,715,671,708,679,710,682,718,671,717,183,493,522,523,536,629,667,666,708,674,712,668,710,675,716,679,723,678,714,179,516,532,622,652,668,703,678,708,679,710,685,712,686,718,680,717,189,614,655,664,710,672,704,682,709,694,726,696,724,685,718,501,818,862,830,882,849,892,863,912,877,930,879,934,820,804,851,817,854,817,861,828,874,840,888,818,799,838,798,844,817,858,829,870,810,792,829,794,831,812,848,809,804,834,818,855,812,814,856,816],[220,387,420,385,409,384,410,387,407,386,420,331,339,324,336,448,472,445,467,444,474,465,494,457,485,217,367,396,386,401,383,397,398,403,333,340,328,341,434,471,450,470,456,485,464,490,463,485,218,373,389,370,396,373,393,315,334,334,348,438,465,440,473,452,470,460,481,458,485,210,366,386,358,392,320,332,326,343,443,468,447,473,452,476,460,494,463,498,195,356,386,323,335,334,331,432,466,453,477,450,480,467,496,461,492,182,315,333,320,332,431,455,448,480,459,484,468,502,471,497,182,502,524,623,647,619,656,625,660,631,670,634,667,384,655,710,670,708,673,715,693,740,690,736,489,631,661,644,673,655,684,661,694,509,615,654,636,670,651,677,515,638,673,649,673,543,658,691,541],[197,364,379,352,371,351,372,362,377,356,371,291,298,293,303,410,430,410,434,430,440,425,457,433,454,180,334,347,348,362,356,370,355,370,290,316,300,307,410,434,416,432,415,435,439,456,433,462,173,332,356,345,357,344,363,279,289,294,317,419,433,416,431,420,442,434,451,432,455,168,333,347,339,352,281,302,296,304,418,444,418,442,423,447,437,452,434,456,160,323,340,276,292,283,306,408,432,426,451,425,452,434,456,423,459,142,274,283,286,296,406,429,420,432,434,458,446,465,445,470,138,476,499,592,635,608,638,611,642,621,648,619,646,352,651,694,657,698,655,706,682,726,680,729,475,613,643,627,657,629,668,642,685,489,607,628,611,652,624,664,488,614,659,620,661,514,630,670,520],[212,386,404,379,412,382,397,379,396,381,401,318,324,404,426,318,333,435,457,444,469,454,477,447,476,212,379,397,370,392,374,390,381,395,326,343,402,437,320,333,440,466,435,475,446,475,445,477,215,365,384,366,383,367,388,320,325,405,437,324,344,436,464,445,466,456,480,449,479,207,354,382,361,384,306,316,391,416,324,342,440,463,444,468,442,471,453,476,194,348,373,325,332,392,412,324,335,444,471,439,467,456,476,454,478,179,317,323,379,409,326,334,437,465,445,481,455,476,450,486,170,377,408,498,526,588,614,593,625,598,631,602,632,325,655,699,611,638,621,655,638,662,649,675,381,650,684,665,698,681,715,682,718,495,621,653,636,660,640,668,502,629,660,640,670,510,642,678,523],[176,344,365,350,371,348,370,341,359,338,365,280,287,380,388,280,294,406,435,419,433,420,449,419,451,168,346,354,343,351,336,355,346,359,280,292,370,391,276,298,405,437,407,436,426,439,417,441,168,336,347,332,356,338,357,279,295,379,391,287,300,402,430,411,442,434,443,418,446,168,332,339,316,340,264,279,383,380,298,308,406,430,407,432,413,447,424,443,156,316,331,279,286,359,382,286,296,419,438,410,436,416,446,422,448,145,281,287,356,361,285,292,409,428,426,442,426,454,428,459,118,353,365,474,499,566,597,567,602,576,616,581,606,304,648,683,585,618,596,634,614,646,626,661,350,642,678,646,680,662,710,661,708,464,597,636,605,647,620,661,483,602,640,613,654,494,621,661,496],[198,374,398,368,397,365,400,367,384,366,395,294,305,393,419,391,425,311,325,418,445,424,463,421,461,199,357,395,363,388,362,385,360,384,302,311,383,417,398,420,315,325,423,452,437,458,438,465,197,359,373,361,375,360,380,308,317,394,430,398,417,319,322,426,456,435,462,439,458,197,342,362,351,368,309,328,381,419,395,422,320,326,430,455,439,461,433,461,200,344,363,305,311,388,411,393,411,331,344,430,459,436,468,426,454,178,319,328,374,398,385,405,322,334,433,463,437,468,435,475,151,381,392,412,434,498,525,562,593,562,600,568,595,329,556,580,656,698,608,638,628,657,641,664,346,646,686,600,635,619,650,628,653,372,636,682,663,700,660,700,497,626,664,642,663,512,639,669,514],[160,336,354,340,352,331,352,323,352,335,348,253,268,365,383,368,388,266,277,395,412,401,427,396,418,156,328,346,336,348,327,345,332,352,269,275,361,383,365,380,274,279,397,421,407,423,410,430,157,325,338,312,340,330,340,270,279,363,381,366,373,279,295,396,430,411,432,404,433,151,316,336,323,330,264,281,354,378,369,387,280,293,405,426,419,427,409,431,155,307,327,267,269,346,363,356,378,287,300,405,421,413,432,403,428,142,269,289,348,358,348,373,284,296,401,434,417,436,419,438,108,344,362,386,403,475,499,542,570,548,584,548,573,292,529,557,645,689,593,628,597,634,617,646,304,635,663,574,618,585,620,598,644,343,621,663,636,693,647,685,471,616,636,615,653,488,606,646,481],[178,352,372,356,375,350,372,351,375,354,375,292,291,386,402,378,407,369,398,294,305,415,446,416,437,185,347,368,348,372,342,366,351,371,297,307,381,403,377,411,376,402,306,314,422,452,429,451,183,342,363,344,365,344,368,292,302,391,410,385,414,382,408,312,315,428,454,425,453,179,329,377,343,356,293,310,369,408,388,407,380,406,299,313,429,447,428,452,174,325,352,306,306,366,392,375,398,380,411,309,327,415,446,429,451,172,297,304,363,389,372,399,380,401,322,331,428,457,425,453,137,375,389,407,433,438,458,499,522,534,563,538,565,321,542,568,551,585,657,700,616,643,627,655,327,556,571,641,683,611,636,611,643,336,637,665,595,620,598,627,374,656,698,663,700,494,627,662,501],[136,320,337,325,336,322,336,323,338,320,333,248,246,357,367,330,372,347,361,259,268,387,404,386,414,136,316,334,320,340,315,330,304,330,261,260,352,371,354,364,348,369,255,266,393,417,394,414,140,321,328,308,329,307,332,250,253,349,375,349,375,363,367,263,270,388,414,392,421,138,300,314,306,326,260,257,345,364,356,362,349,371,268,284,399,418,388,410,141,295,315,264,268,339,362,347,370,360,377,272,279,392,416,396,414,132,253,263,335,345,340,354,353,373,284,300,400,429,395,424,88,340,358,375,398,407,430,478,501,513,538,513,542,292,523,545,531,558,649,686,593,627,599,639,291,528,553,634,671,578,616,588,626,301,620,654,565,603,584,611,326,641,683,645,690,471,610,646,468],[160,345,362,331,357,338,361,332,360,342,362,271,277,371,390,372,402,355,392,370,385,286,286,408,429,169,344,375,345,366,333,361,337,357,276,297,374,389,368,389,367,391,379,398,288,301,401,431,164,327,359,322,355,332,350,280,290,371,394,374,397,371,392,374,406,292,301,408,440,164,312,346,318,347,282,302,366,392,375,397,371,393,370,394,300,306,416,435,162,309,334,292,298,356,382,360,386,373,402,374,394,307,315,413,447,152,296,315,347,368,358,383,373,385,379,402,314,323,412,442,123,369,379,402,424,438,452,466,487,498,523,524,558,319,539,554,545,570,564,584,654,702,615,640,315,535,559,554,576,646,686,601,635,324,541,570,637,663,586,621,339,637,668,597,623,365,643,700,492],[117,309,328,312,333,311,326,302,316,308,324,217,236,336,356,342,357,337,345,328,354,246,254,372,399,118,307,322,308,314,304,316,304,315,238,243,332,358,334,360,333,354,350,356,241,263,386,408,121,300,314,294,307,296,323,234,238,334,363,344,357,328,355,352,363,256,256,378,409,115,292,305,289,307,235,247,337,352,343,356,344,361,342,365,250,263,380,406,118,282,305,243,250,318,346,323,355,340,358,355,360,258,270,379,403,119,248,254,318,336,334,352,338,354,355,362,269,285,391,411,70,330,352,369,384,400,416,437,462,477,500,502,531,284,499,527,516,553,533,562,653,690,589,626,284,505,537,521,554,635,669,581,614,289,509,540,614,655,559,597,300,618,663,567,594,326,650,680,465],[162,338,362,336,363,339,360,334,362,332,359,266,272,368,391,382,396,358,396,370,391,372,400,283,294,157,341,370,337,358,328,360,334,361,277,294,368,393,375,398,370,401,361,409,376,400,289,296,163,336,353,323,348,329,356,286,280,372,395,371,393,376,399,375,403,384,400,299,306,161,312,336,330,343,284,286,369,387,378,398,370,391,376,393,373,411,294,312,161,318,336,289,295,356,371,367,389,374,395,371,394,384,391,293,313,160,292,302,348,372,356,380,363,390,386,399,382,400,314,326,121,366,381,398,419,432,452,462,487,476,498,502,525,314,525,547,536,557,553,581,564,591,682,719,321,537,548,541,573,563,582,670,714,329,540,562,547,580,649,684,339,563,577,648,689,347,648,692,369],[120,310,325,311,322,302,321,305,318,309,323,228,232,336,360,347,364,327,348,337,354,341,352,242,253,124,304,308,307,313,309,322,304,325,233,247,346,369,340,364,347,355,347,363,352,366,244,249,126,300,309,296,312,299,320,230,242,339,355,340,351,349,360,346,362,350,366,248,265,114,288,302,296,308,238,247,338,349,339,360,344,361,350,357,350,361,255,260,114,286,295,236,246,325,343,334,353,348,358,346,362,352,366,265,269,114,254,266,319,326,328,346,338,358,350,375,356,371,267,283,66,333,354,368,394,405,427,435,458,442,469,475,500,274,500,522,510,538,523,549,544,574,663,697,285,509,534,520,543,530,564,647,680,289,502,540,514,550,629,676,295,520,558,631,679,311,630,681,333],[199,525,548,518,550,528,541,510,551,536,563,529,559,652,696,667,707,655,694,663,695,656,701,671,705,192,515,542,510,546,512,530,528,554,539,568,656,693,670,710,662,702,672,712,670,705,682,718,195,494,522,495,518,512,541,526,556,654,692,666,706,668,698,667,702,667,705,676,712,189,492,518,501,530,529,549,636,678,672,701,666,699,669,707,671,702,679,713,188,502,527,515,550,624,656,665,707,665,710,672,701,665,702,682,718,182,514,538,622,653,666,699,671,699,680,709,677,718,680,721,180,616,648,675,696,671,708,679,708,681,716,686,726,500,810,867,830,882,846,900,863,911,881,936,814,816,850,825,862,821,866,825,872,810,811,838,796,839,812,852,817,808,847,811,861,819,816,860,826],[221,390,413,383,418,385,413,388,412,396,405,386,414,331,338,338,342,440,470,446,472,457,479,467,484,219,385,404,384,402,387,403,387,406,390,408,329,338,339,344,440,467,450,478,450,484,460,496,222,363,387,372,396,383,399,385,402,339,351,340,336,442,471,443,475,451,475,458,487,216,366,388,361,397,374,397,317,337,344,356,431,466,444,480,446,479,461,482,211,363,393,365,388,329,347,333,350,443,482,446,469,456,479,459,494,202,362,387,335,338,339,348,444,470,461,476,460,489,470,492,196,345,349,345,352,444,471,458,477,461,501,475,500,190,499,524,582,614,595,620,598,630,608,634,393,643,687,656,687,658,693,678,710,500,622,646,626,661,652,664,501,634,652,640,665,513,636,668,532],[185,362,382,354,371,351,374,360,379,348,384,359,375,286,299,294,308,404,432,421,446,425,446,433,459,190,358,368,350,372,347,372,368,370,354,373,293,300,292,314,420,436,425,446,420,446,432,462,184,333,351,344,352,343,366,356,370,292,309,304,303,418,439,419,440,425,448,433,457,176,333,350,339,359,349,354,282,292,299,312,412,436,419,442,424,448,425,453,173,346,348,335,356,287,305,298,314,424,440,422,438,428,454,437,460,158,330,343,291,308,307,311,415,436,428,455,437,461,442,466,149,290,306,301,317,420,443,432,455,446,473,453,478,133,476,499,565,599,573,602,575,612,585,624,360,631,670,641,671,641,688,660,686,476,596,630,608,643,624,651,486,602,645,618,661,494,617,651,506],[208,377,399,374,401,373,399,371,389,377,401,378,400,305,320,403,437,308,330,421,458,432,452,439,465,209,379,398,374,395,373,402,376,395,376,397,314,339,406,427,333,327,445,461,444,462,455,473,207,365,392,373,385,368,388,378,393,329,340,399,432,329,348,442,468,444,468,447,472,206,355,376,363,391,369,390,326,342,407,430,329,350,444,466,437,463,455,475,210,353,378,353,383,312,334,395,423,332,354,435,464,445,472,444,476,202,352,371,327,351,394,411,338,355,445,473,452,476,450,480,183,330,343,389,415,344,355,449,469,455,484,464,490,170,418,435,500,524,555,586,567,590,564,608,332,638,677,601,623,608,644,630,653,397,631,666,636,678,656,687,492,621,658,640,663,505,640,665,511],[171,349,368,344,360,340,363,341,356,347,360,338,359,270,283,376,396,278,291,404,414,402,426,406,417,179,344,364,339,361,343,360,342,357,343,367,275,284,378,391,283,306,406,434,411,438,422,446,158,335,353,329,344,338,347,346,360,291,295,370,391,287,302,438,426,414,427,428,444,173,329,339,336,353,338,352,286,295,382,396,298,309,408,423,420,439,426,452,160,326,340,325,343,275,288,367,385,307,318,412,430,419,435,422,450,158,322,344,280,303,366,378,302,315,410,438,417,446,429,449,146,292,302,362,382,302,311,415,442,430,447,443,462,118,386,401,476,500,530,568,545,576,551,578,298,620,659,570,610,587,627,600,638,350,618,649,618,660,642,675,472,598,643,602,648,489,601,646,498],[194,367,390,371,381,363,389,365,382,357,389,362,386,297,302,386,416,381,411,302,317,422,444,423,452,200,356,382,366,383,368,380,361,386,369,376,302,316,387,421,394,416,316,328,436,451,436,466,194,352,380,358,379,356,380,356,384,305,314,392,414,386,414,316,320,430,458,435,468,193,347,365,355,376,352,376,314,319,408,438,393,406,317,330,435,466,432,471,193,351,360,343,363,308,328,386,412,398,420,325,336,427,455,441,462,196,336,353,304,326,384,403,390,416,334,353,430,456,437,466,183,327,345,379,404,392,407,343,351,436,467,447,477,154,405,427,445,470,501,525,535,564,547,574,331,541,567,630,678,601,624,616,646,338,628,662,587,606,610,627,377,631,668,652,692,484,633,656,510],[154,326,350,334,351,329,350,335,353,329,352,329,340,251,286,364,378,350,371,257,268,394,421,399,418,158,328,350,341,348,331,341,330,347,333,353,267,274,356,380,361,385,272,289,398,428,410,439,150,326,340,324,337,323,345,328,339,265,273,360,382,364,374,272,286,399,418,404,438,152,313,334,321,327,320,344,266,272,365,382,362,381,283,294,403,421,412,416,150,310,330,318,333,270,285,354,386,368,387,288,304,404,426,408,435,148,314,329,268,277,349,364,354,376,300,315,397,432,414,433,139,285,294,345,366,362,372,300,314,416,438,419,451,100,380,398,414,432,475,501,512,543,520,552,296,522,541,624,662,577,608,588,623,303,600,644,566,591,563,609,350,613,649,635,674,468,607,636,485],[175,352,375,349,377,356,367,342,370,351,371,345,374,279,296,378,406,369,399,382,398,291,305,414,446,180,355,373,344,368,344,366,349,364,350,368,286,306,385,390,378,412,380,405,304,307,423,460,173,351,372,340,360,350,366,341,363,290,308,376,399,377,399,380,407,300,311,434,452,184,336,362,337,362,338,364,301,305,387,408,374,405,379,408,300,331,428,449,170,332,349,332,356,306,312,374,402,387,408,389,417,309,323,428,450,175,332,351,307,318,376,393,373,399,389,412,328,340,430,450,172,307,318,362,386,372,403,384,407,346,347,436,456,137,402,425,433,455,465,488,501,525,533,568,322,526,555,542,577,644,677,598,624,330,538,559,622,659,586,617,339,625,660,590,622,372,653,686,502],[137,321,338,318,338,318,322,314,331,324,330,319,331,233,239,346,364,349,354,339,362,248,265,390,407,135,316,330,323,324,326,332,312,331,317,330,243,254,346,363,347,371,350,379,260,263,396,421,133,310,326,310,327,316,328,315,333,253,259,349,364,342,365,350,369,260,274,382,416,131,304,320,317,322,310,324,259,261,356,372,343,370,355,371,268,282,395,418,135,296,314,298,311,256,270,340,364,352,369,356,370,274,288,392,422,132,296,318,269,273,340,359,350,362,362,382,288,297,401,425,126,260,274,338,354,343,366,357,373,298,310,409,426,89,370,388,410,424,436,457,475,500,503,543,288,508,534,510,550,632,662,573,607,293,510,528,617,638,556,595,297,614,648,560,603,337,635,676,474],[159,338,373,325,357,335,386,337,354,339,362,330,349,260,274,374,392,354,387,368,383,374,388,283,300,164,334,354,334,356,332,356,337,361,340,353,273,282,365,388,364,395,373,386,366,405,291,298,164,333,349,328,357,334,358,333,348,275,290,368,386,367,388,371,396,372,399,287,298,159,320,346,324,357,323,358,278,285,373,392,375,392,366,400,370,386,302,304,158,314,345,327,342,285,292,361,385,371,395,373,394,373,396,298,311,157,315,337,296,307,359,383,365,394,370,402,372,401,306,328,160,310,320,351,374,359,383,373,401,385,411,318,337,119,392,415,436,449,453,480,467,497,501,524,310,521,545,529,558,547,563,646,684,325,526,544,537,561,634,668,329,529,570,631,672,331,638,667,368],[116,312,323,308,322,305,320,298,315,308,320,298,318,220,225,336,358,323,340,326,346,334,345,242,254,113,307,318,302,324,306,319,308,317,310,324,234,236,338,352,338,358,337,355,345,366,253,261,115,294,306,295,308,302,315,308,316,234,238,340,355,342,361,335,350,336,357,277,260,115,294,303,292,307,301,332,236,245,338,356,339,347,342,355,344,370,250,275,111,284,295,292,302,244,252,332,341,340,361,344,350,346,356,260,272,110,288,300,249,258,328,345,341,357,349,364,355,372,263,280,112,264,271,325,339,336,354,345,361,360,374,281,303,64,366,376,392,422,426,448,432,457,476,500,272,492,519,510,525,516,561,617,664,287,495,516,507,534,604,646,291,506,532,617,644,302,615,650,326],[207,531,550,517,542,519,543,525,548,533,559,530,558,538,565,659,694,660,690,656,689,655,690,668,703,190,512,532,498,535,506,529,518,544,527,558,539,566,657,688,663,708,672,706,671,708,671,713,201,499,516,487,516,509,539,518,550,539,562,650,688,660,697,663,706,658,700,658,702,192,478,503,500,527,508,533,522,545,643,690,650,680,663,697,670,699,669,698,186,495,517,511,528,521,546,622,672,660,698,663,698,668,701,665,709,183,494,526,512,537,630,667,666,690,663,699,673,710,672,713,182,511,525,619,650,654,696,673,709,685,716,679,715,186,607,640,668,702,669,704,678,712,690,728,501,812,862,830,884,844,900,867,916,812,806,850,821,852,819,858,816,817,857,821,865,815,821,863,812],[225,395,422,392,416,385,408,384,399,380,406,383,406,384,405,323,334,328,338,438,452,442,468,437,468,226,377,405,376,404,387,408,388,404,390,415,394,416,328,339,335,340,446,465,448,477,455,482,229,374,401,375,399,384,410,387,412,381,412,338,346,340,362,443,466,443,472,449,483,220,369,382,379,399,383,405,383,410,346,353,349,352,436,467,452,476,449,484,220,368,386,368,398,373,404,330,342,344,363,442,470,442,480,447,477,210,363,393,372,395,341,346,348,364,449,479,452,481,451,488,201,369,387,350,358,354,365,444,472,465,494,463,490,184,357,369,362,380,459,478,474,492,479,508,188,493,525,557,588,561,593,573,600,393,612,654,621,654,630,668,495,607,640,632,651,516,624,652,518],[184,360,385,362,381,353,376,351,365,366,374,356,371,356,367,287,297,294,305,409,430,402,438,425,440,183,386,372,355,368,353,369,355,378,352,380,359,378,292,302,304,312,412,436,420,439,421,446,190,346,370,351,365,352,376,361,373,356,373,299,310,306,313,418,444,415,441,422,452,180,332,345,351,366,344,370,354,375,295,315,296,321,420,434,432,440,426,448,182,341,356,339,356,344,364,295,307,300,327,409,435,418,446,429,444,170,340,345,343,361,302,314,317,326,421,446,428,456,442,457,162,339,357,316,322,314,337,429,447,441,463,452,466,150,313,330,323,341,433,459,445,466,455,481,138,475,500,524,564,537,571,549,579,360,590,636,600,642,617,644,474,590,629,597,630,484,602,633,493],[212,382,401,378,399,374,396,373,395,368,398,372,396,365,397,317,318,390,416,313,328,420,453,436,462,212,369,397,371,394,363,390,374,403,370,398,371,398,309,320,400,428,325,335,434,453,443,466,212,363,393,363,395,380,389,370,395,377,398,328,330,396,419,319,339,431,461,442,478,209,353,390,363,374,368,398,370,393,318,334,396,430,325,348,439,465,445,473,204,360,381,363,391,372,381,331,344,405,426,339,352,440,463,448,471,197,361,375,362,385,329,336,400,419,358,351,444,468,453,471,202,356,373,335,354,400,426,359,366,446,479,459,480,175,344,359,399,430,370,376,458,490,471,490,170,443,476,497,524,531,560,542,571,328,602,642,580,602,586,618,384,616,647,621,659,487,610,636,509],[168,346,371,344,362,339,362,343,365,343,356,343,354,347,361,263,282,361,383,284,294,401,420,404,433,170,337,359,335,352,338,354,336,360,340,364,347,361,274,286,370,382,283,299,414,433,417,436,168,336,356,339,355,338,359,340,360,342,366,282,287,367,390,293,303,404,443,416,437,160,326,340,329,347,337,351,340,360,282,294,368,389,287,311,419,433,408,437,163,322,346,331,355,340,363,286,303,374,392,298,309,414,432,415,434,166,325,340,341,346,285,291,371,386,316,330,417,435,408,444,156,327,343,302,320,365,382,317,329,424,446,427,457,138,313,329,377,390,322,338,423,450,442,475,116,412,436,476,500,512,536,524,548,298,590,626,548,575,564,596,358,596,636,606,642,471,591,620,476],[194,356,391,366,390,359,392,366,381,364,400,365,382,353,385,294,309,373,408,379,401,307,316,426,452,187,368,386,355,370,351,383,355,382,360,382,358,384,298,312,392,414,393,418,306,320,432,458,189,348,367,351,375,358,380,359,387,355,379,306,314,392,424,391,423,316,333,431,460,193,346,372,349,374,351,382,356,384,304,322,379,419,389,418,314,331,430,459,186,348,366,355,372,354,371,312,323,380,417,394,421,328,342,427,452,188,341,372,351,369,322,340,390,416,398,421,332,359,436,466,183,345,371,319,338,381,415,389,422,354,365,437,470,179,342,359,392,413,399,423,356,368,453,484,156,439,463,469,488,502,525,536,562,325,520,544,609,645,580,601,338,608,638,584,604,377,622,660,502],[145,336,348,325,350,329,345,333,356,333,346,330,352,330,354,255,265,347,370,354,373,260,282,395,422,150,330,350,302,338,326,349,324,345,332,343,329,337,258,266,360,377,369,378,265,282,404,423,146,320,334,323,335,319,340,329,348,329,349,262,265,361,368,368,384,273,289,404,426,144,311,323,320,330,310,342,322,351,273,275,359,369,350,377,279,288,403,419,152,314,332,312,341,319,332,278,280,371,382,370,390,289,298,408,422,145,316,330,319,338,284,296,364,371,365,388,296,318,406,426,142,316,332,285,290,350,380,364,384,314,331,418,436,134,307,312,356,373,376,392,323,338,437,439,100,407,429,440,464,475,499,507,537,289,497,512,591,628,552,586,300,598,630,556,580,338,600,635,478],[180,353,378,349,375,336,375,342,374,347,374,344,363,346,367,278,289,359,393,372,396,368,398,295,306,180,351,374,338,368,341,367,349,364,348,376,342,362,287,294,384,408,376,404,388,404,301,310,174,343,364,340,359,339,367,343,371,350,378,289,296,381,407,377,409,388,414,296,314,174,341,367,333,367,337,360,343,368,289,301,370,397,376,403,377,407,313,320,177,340,366,334,363,348,362,295,307,374,405,379,411,391,412,314,327,174,338,347,333,354,314,317,376,400,381,418,383,420,324,338,171,339,358,318,339,372,402,389,412,399,419,330,353,175,322,340,370,400,384,412,402,427,354,383,133,427,451,458,476,464,493,500,526,315,509,532,514,537,609,643,323,514,540,614,652,328,610,637,368],[134,316,338,320,340,317,334,316,338,321,333,321,334,308,335,232,245,342,356,340,356,337,354,253,268,136,321,338,319,334,317,330,307,327,316,333,314,333,240,246,346,360,341,362,357,368,264,275,130,317,324,309,319,310,330,316,335,314,335,244,258,345,371,347,369,350,372,259,278,130,303,323,309,328,312,324,316,332,245,265,347,358,348,367,353,360,257,281,129,304,323,299,318,304,324,255,267,356,371,354,387,350,376,275,284,129,300,311,313,318,268,278,356,363,354,376,365,376,284,301,130,306,315,282,292,347,356,357,374,365,386,286,320,128,290,314,347,362,354,377,376,393,316,336,84,400,421,429,452,438,463,474,501,278,476,503,499,520,590,627,294,490,513,585,629,305,589,630,340],[188,523,549,514,546,507,543,517,532,532,549,514,545,529,550,537,561,634,680,664,704,669,698,666,705,189,503,530,502,526,487,522,519,540,529,557,530,546,525,557,636,690,669,700,667,697,669,704,195,490,519,474,515,501,521,520,547,524,554,527,555,650,685,661,698,663,698,657,707,196,476,496,494,516,509,532,516,548,531,566,638,680,658,700,659,691,666,698,187,477,492,489,506,495,524,518,532,640,675,663,683,660,685,663,696,188,486,516,499,530,510,535,634,669,664,700,664,704,668,704,190,491,511,505,536,628,657,664,699,676,711,671,711,190,500,524,603,650,662,697,670,707,675,713,188,607,640,672,702,675,711,685,722,497,810,857,825,874,848,899,811,833,871,830,878,813,830,877,820],[211,392,410,386,412,381,406,382,401,382,410,386,413,384,411,392,418,313,319,311,324,434,466,443,474,227,382,409,385,403,382,402,382,410,396,413,382,413,393,405,327,341,333,350,445,473,456,477,230,382,412,378,406,375,404,383,412,381,414,384,410,326,342,334,347,447,472,450,480,230,369,396,379,405,385,409,387,412,383,413,336,354,346,352,446,467,460,472,227,358,389,384,394,383,402,385,405,340,360,351,359,446,465,446,474,224,360,389,376,396,378,396,343,358,360,377,457,473,456,477,208,385,393,379,403,364,379,363,380,459,491,460,498,189,378,404,369,382,372,400,462,490,474,505,194,388,410,398,410,480,503,491,524,190,501,524,534,559,542,571,403,596,617,603,633,500,597,620,519],[177,358,370,363,379,356,376,351,372,345,376,350,372,354,366,342,372,267,277,276,293,402,424,419,426,187,352,372,364,372,350,374,356,368,361,384,361,372,359,372,294,308,293,312,421,441,420,449,186,348,368,347,366,357,372,359,373,359,376,358,369,291,304,302,310,421,443,422,450,192,342,365,347,363,355,383,358,369,362,373,296,316,311,321,410,438,433,454,176,321,347,345,360,354,377,362,372,309,324,312,337,413,441,423,445,178,344,362,351,366,354,369,303,314,319,341,420,446,426,452,171,346,372,347,364,318,337,335,346,430,460,438,460,162,354,370,334,351,338,356,441,472,456,484,150,346,364,358,374,456,488,468,497,143,476,500,510,530,520,543,370,576,610,574,614,470,570,604,490],[188,370,400,379,400,372,399,362,398,370,396,375,397,371,390,368,389,292,311,384,422,305,316,428,448,204,361,391,374,388,371,393,374,396,372,399,376,397,377,392,312,326,394,431,326,332,432,464,213,366,390,362,390,371,388,368,393,374,399,372,394,316,332,405,433,335,353,446,468,209,355,384,366,391,374,401,378,404,366,400,326,346,403,432,327,348,440,468,206,364,385,366,385,375,390,369,393,335,340,394,420,337,349,441,469,209,360,386,362,395,369,395,335,356,413,434,354,364,442,471,206,364,389,364,395,337,364,405,435,363,386,453,486,204,374,392,364,382,413,434,378,383,463,493,179,379,400,420,452,391,409,486,501,175,466,490,502,526,531,563,347,579,613,555,589,392,587,618,511],[156,344,354,340,360,336,357,339,359,347,364,337,354,340,362,345,360,252,262,370,382,258,276,402,423,170,340,359,340,360,344,354,346,363,344,361,345,362,339,361,263,287,376,392,283,291,407,435,167,334,351,331,354,344,362,335,360,344,369,342,363,275,284,379,391,286,303,416,438,171,328,351,336,351,341,360,344,365,349,351,287,295,378,395,293,310,415,435,166,331,350,330,352,336,363,343,352,288,301,364,387,294,311,405,435,172,332,359,336,354,336,360,301,304,388,404,310,336,415,441,169,330,348,340,353,300,307,380,397,337,345,420,450,161,339,357,322,340,394,409,341,362,439,466,148,346,358,398,425,355,372,463,480,126,441,470,474,500,507,527,310,568,597,524,552,359,569,608,477],[177,362,385,360,382,358,386,358,380,362,387,360,377,352,375,352,379,282,292,379,403,378,402,292,306,193,356,389,361,375,361,374,368,383,364,384,355,386,362,378,300,313,386,414,388,417,311,322,195,354,375,354,373,355,376,356,381,360,380,361,376,309,305,395,425,393,425,306,330,195,346,371,359,380,342,374,356,376,355,385,297,324,389,411,394,420,321,334,191,351,367,356,379,358,380,361,379,332,323,397,417,388,423,331,346,188,353,379,358,373,353,384,331,343,397,422,396,420,341,355,188,349,376,360,380,340,353,402,416,414,441,351,371,188,348,376,344,358,390,437,414,444,366,396,181,370,383,414,436,420,448,391,410,152,458,480,469,493,496,524,333,498,525,584,617,339,588,613,389],[142,337,352,343,350,333,348,323,344,336,350,333,343,328,341,330,349,235,240,344,367,354,372,248,259,151,333,344,334,351,324,340,341,344,334,348,322,345,334,339,265,264,359,359,358,384,272,286,149,324,338,325,335,330,342,331,347,336,344,328,345,262,274,368,385,365,384,280,288,148,322,332,315,352,329,345,332,342,336,351,268,283,364,385,364,392,282,293,145,319,331,329,345,333,340,325,346,279,275,364,376,369,379,285,303,150,326,336,323,340,320,342,294,298,372,385,375,389,299,308,152,323,336,332,339,300,315,373,389,379,403,316,324,148,336,349,313,325,373,391,383,405,332,354,142,332,356,382,404,399,414,357,373,101,429,457,437,473,476,500,292,466,494,563,599,312,578,598,350],[190,511,542,518,535,505,528,504,536,520,547,512,543,511,545,529,556,514,543,635,665,661,691,657,699,190,499,523,498,522,488,518,502,529,510,536,508,538,523,543,532,556,639,681,663,693,663,695,189,487,500,488,499,492,517,502,536,520,540,512,540,526,545,643,682,656,695,661,695,192,480,494,471,506,496,523,517,533,518,543,526,539,638,681,646,689,656,691,191,473,492,486,512,503,520,505,541,513,549,643,667,653,688,659,684,183,462,498,486,506,494,527,513,536,637,682,650,694,658,692,191,485,512,498,517,503,529,626,674,661,700,661,705,183,499,514,508,528,623,650,661,703,671,709,184,505,526,616,642,662,700,677,706,189,597,630,653,690,667,708,500,829,880,842,897,804,828,870,814],[192,365,394,370,399,369,395,366,396,376,395,370,392,362,399,366,396,354,384,289,300,296,310,425,454,201,362,394,360,397,372,394,365,393,371,389,374,394,367,396,369,393,312,322,320,329,442,469,197,371,382,360,390,363,385,362,381,380,404,372,397,373,393,320,324,330,331,443,460,206,366,390,359,396,363,387,375,393,378,394,378,393,314,343,326,346,433,473,206,354,387,365,391,368,391,372,390,373,396,334,348,339,344,445,465,203,349,375,369,387,368,392,373,395,339,354,346,378,445,474,196,362,386,371,398,374,384,344,359,363,382,437,480,192,366,398,379,402,369,387,375,386,471,494,183,393,410,384,404,392,402,486,510,167,404,424,421,432,501,534,171,502,525,535,563,390,543,567,498],[150,337,364,340,361,344,357,342,353,338,356,338,358,340,358,344,359,321,344,253,255,263,272,399,419,164,334,355,341,355,340,357,339,358,334,367,337,355,337,357,339,351,269,287,275,292,408,434,169,332,361,329,356,334,361,340,353,340,366,342,349,337,363,276,286,289,303,398,432,165,320,348,328,344,333,344,340,371,347,363,341,358,280,293,288,304,406,444,169,325,353,328,349,335,358,342,358,345,362,290,301,307,316,406,440,157,315,330,341,349,347,359,345,361,294,315,312,324,419,434,166,327,341,340,360,336,364,302,317,332,337,423,442,153,348,355,342,357,332,351,340,352,430,468,143,360,371,353,364,362,370,460,487,129,383,390,387,403,475,506,120,475,501,508,534,355,525,544,459],[178,359,386,352,384,353,375,360,383,350,382,352,378,353,376,348,390,339,366,284,284,386,406,289,300,184,356,380,351,386,351,378,347,376,369,390,358,389,357,383,349,380,298,316,402,414,306,320,197,351,368,345,375,352,368,366,386,357,389,353,384,350,374,304,302,386,412,310,319,186,346,372,350,372,359,386,356,390,357,387,362,376,301,322,386,414,320,328,191,347,376,352,377,363,392,354,378,364,383,319,328,394,418,323,340,176,341,372,356,373,357,377,357,393,330,332,399,426,326,358,182,351,380,360,387,358,385,337,355,403,433,352,369,189,360,382,360,398,348,365,410,440,369,383,179,368,403,379,394,416,444,386,415,170,397,426,445,476,416,437,158,465,492,501,524,334,534,554,371],[124,330,342,328,348,329,334,320,344,325,341,326,341,320,336,329,338,307,330,236,242,356,359,245,253,148,319,340,319,347,327,340,325,338,338,346,327,341,321,342,324,338,256,258,368,378,267,275,146,320,337,311,339,329,342,334,342,329,346,320,347,333,345,250,277,363,375,276,276,147,319,335,318,341,323,336,327,343,325,346,328,339,268,269,358,380,271,287,152,318,338,329,339,324,333,326,346,324,350,276,280,366,382,282,299,144,322,333,314,330,330,347,330,356,284,301,363,377,295,310,145,327,339,330,346,337,347,300,310,377,406,311,321,139,335,339,337,352,308,326,378,397,328,356,135,349,370,341,358,396,420,348,371,122,367,386,411,448,383,401,103,437,466,476,501,296,501,536,343],[181,508,542,501,524,508,520,509,522,511,542,504,523,499,542,516,543,511,534,509,535,628,674,653,685,183,494,515,494,516,489,506,503,525,503,526,513,535,512,535,517,542,518,542,635,670,657,696,186,484,500,475,500,491,508,493,531,521,531,510,537,516,532,516,540,638,666,650,683,188,470,488,477,497,478,504,505,518,514,540,513,545,518,551,636,675,650,681,183,471,492,475,508,491,507,491,527,517,542,513,533,635,668,644,687,191,476,495,471,502,499,520,502,516,516,543,640,670,651,681,188,457,486,490,506,488,512,506,529,635,674,653,689,181,487,506,495,511,516,532,628,663,669,698,185,484,516,513,529,623,662,672,695,187,500,530,608,641,661,688,196,610,645,666,704,501,839,887,803],[170,356,395,355,379,350,380,349,379,361,385,349,378,352,378,353,372,341,362,332,365,281,288,295,292,185,355,374,355,380,348,377,357,372,364,377,356,381,353,387,360,384,358,382,290,302,304,328,190,351,374,344,375,352,374,354,382,361,380,354,384,355,386,355,379,300,312,311,320,182,340,378,347,374,349,375,357,375,357,382,357,386,362,376,302,311,311,330,189,351,367,343,375,354,374,355,388,364,382,358,392,318,328,323,336,189,344,374,360,371,354,384,354,386,368,387,335,340,341,344,186,342,370,358,379,361,394,373,390,357,350,352,370,184,364,383,360,399,367,393,347,365,362,385,179,376,398,390,409,378,400,390,411,170,403,430,413,431,412,422,172,457,475,466,499,161,500,524,382],[125,328,337,322,336,322,335,326,342,322,338,334,336,322,334,323,344,316,329,312,323,230,243,245,247,137,319,335,329,339,320,338,317,348,322,340,330,344,326,340,322,342,326,338,259,260,262,274,146,318,326,320,324,322,337,310,339,323,342,323,350,320,336,322,343,262,268,265,282,145,312,328,324,326,322,336,321,333,334,352,325,340,337,332,269,286,276,281,145,317,344,317,332,306,335,325,342,336,343,337,344,274,283,277,291,146,324,339,299,339,329,341,332,348,342,345,290,296,297,308,144,309,330,322,339,331,354,338,354,300,320,308,319,140,332,349,335,354,344,364,314,324,333,350,137,348,367,364,380,340,365,363,370,123,380,396,382,392,387,402,130,433,456,446,464,113,476,499,339],[176,502,523,496,524,492,528,493,522,499,532,499,530,486,524,507,535,504,532,503,520,509,530,614,662,179,483,512,480,503,478,505,487,517,494,524,507,519,499,528,501,523,502,531,507,536,630,672,180,470,502,468,486,481,509,487,513,500,522,498,530,515,528,501,537,511,529,635,671,179,465,477,471,490,479,509,493,509,501,526,497,527,504,526,507,530,628,663,178,466,480,478,500,473,498,493,512,507,529,505,532,498,532,626,668,186,465,489,474,498,484,515,493,523,507,538,508,524,630,669,184,459,480,477,504,486,519,499,532,508,535,631,667,174,468,494,489,502,490,515,498,526,632,674,188,482,507,491,524,498,522,632,660,180,481,510,488,523,611,650,186,501,541,629,657,197,618,661,501]];
+const EQ = EQ_RAW.map(r => r.map(x => x / 1000));
+const NAMES = Solver.names, NC = Solver.NC;
+const $ = id => document.getElementById(id);
+const NODES = [
+  { k:'B',  key:'pB',  act:'PUSH', fold:'FOLD', short:'BTN push',            title:'BTN: push o fold (primero en hablar)' },
+  { k:'S1', key:'pS',  act:'PUSH', fold:'FOLD', short:'SB push',             title:'SB: push o fold (BTN foldea)' },
+  { k:'S2', key:'cS',  act:'CALL', fold:'FOLD', short:'SB call vs BTN',      title:'SB: call o fold ante push del BTN' },
+  { k:'D1', key:'cD1', act:'CALL', fold:'FOLD', short:'BB call vs BTN',      title:'BB: call o fold ante push del BTN (SB foldea)' },
+  { k:'D2', key:'cD2', act:'CALL', fold:'FOLD', short:'BB call vs BTN + SB', title:'BB: call o fold ante push del BTN y call del SB' },
+  { k:'D3', key:'cD3', act:'CALL', fold:'FOLD', short:'BB call vs SB',       title:'BB: call o fold ante push del SB (BTN foldea)' },
+  { k:'H1', key:'pH',  act:'PUSH', fold:'FOLD', short:'SB push (HU)',        title:'SB (botón): push o fold' },
+  { k:'H2', key:'cH',  act:'CALL', fold:'FOLD', short:'BB call (HU)',        title:'BB: call o fold ante push del SB' }
+];
+const NODE_BY = Object.fromEntries(NODES.map(n => [n.k, n]));
+const PRESETS = [
+  { n:'Spot 1 · BTN 600 / SB 450 / BB 750 (40/80)', st:[600,450,750], bl:[40,80], node:'B',  rng:'(45.49%) 22+,A2+,K9+,K8s-K2s,Q9+,Q8s-Q2s,J9+,J8s-J5s,T8+,T7s,T6s,98,97s,96s,86s+,75s+,65s,54s;80:K8o,J8o;70:J4s;60:Q8o', ev:2.98, extra:'SB paga 9.5%, BB paga 11%' },
+  { n:'Spot 2 · BTN 930 / SB 440 / BB 430 (30/60)', st:[930,440,430], bl:[30,60], node:'S1', rng:'(78.97%) 22+,A2+,K2+,Q2+,J5+,J4s-J2s,T6+,T5s-T2s,96+,95s-92s,85+,84s-82s,75+,74s,73s,64+,63s,62s,54,53s,52s,42s+,32s;60:95o,72s;30:J4o', ev:6.13, extra:'BB paga 37%' },
+  { n:'Spot 4 · BTN 705 / SB 615 / BB 480 (30/60)', st:[705,615,480], bl:[30,60], node:'S1', rng:'(79.1%) 22+,A2+,K2+,Q3+,Q2s,J5+,J4s-J2s,T6+,T5s-T2s,95+,94s-92s,85+,84s-82s,75+,74s-72s,64+,63s,62s,54s,53s,52s,42s+,32s,90:J4o', ev:4.48, extra:'BB paga 29%' },
+  { n:'Spot 5 · BTN 540 / SB 805 / BB 455 (30/60)', st:[540,805,455], bl:[30,60], node:'B',  rng:'(28.27%) 22+,A8+,A7s,A6s,A5,A4s-A2s,KT+,K9s-K5s,QT+,Q9s,Q8s,JT,J9s,J8s,T8s+,98s;80:K4s;60:A7o;50:A4o,87s;20:K3s,Q6s;10:Q7s,97s', ev:2.24, extra:'SB paga 7%, BB paga 11%' },
+  { n:'Spot 6 · BTN 485 / SB 265 / BB 1050 (30/60)', st:[485,265,1050], bl:[30,60], node:'B', rng:'(29.89%) 22+,A4+,A3s,A2s,KT+,K9s-K6s,QT+,Q9s,Q8s,JT,J9s,J8s,T8s+,97s+,87s;60:T7s', ev:2.36, extra:'SB paga 15%, BB paga 8.8%' },
+  { n:'Spot 7 · BTN 840 / SB 525 / BB 435 (30/60)', st:[840,525,435], bl:[30,60], node:'S1', rng:'(76.77%) 22+,A2+,K2+,Q3+,Q2s,J5+,J4s-J2s,T6+,T5s-T2s,96+,95s-92s,85+,84s-82s,75+,74s,73s,64+,63s,62s,54,53s,52s,42s+', ev:5.34, extra:'BB paga 35%' },
+  { n:'Spot 8 · BTN 540 / SB 260 / BB 1000 (20/40)', st:[540,260,1000], bl:[20,40], node:'S2', rng:'(9.29%) 66+,AT+,KQs;30:A9s', ev:4.86, extra:'BTN empuja 540' },
+  { n:'Spot 9 · BTN 970 / SB 535 / BB 295 (30/60)', st:[970,535,295], bl:[30,60], node:'S2', rng:'(4.22%) 99+,AK,AQs', ev:1.88, extra:'BTN empuja 970 (42%)' },
+  { n:'Spot 10 · BTN 585 / SB 385 / BB 830 (30/60)', st:[585,385,830], bl:[30,60], node:'S2', rng:'(9.17%) 77+,AT+,A9s,KQs;40:A8s', ev:5.64, extra:'BTN empuja (36%), BB paga 8.7%' }
+];
+const POSN = { 3: ['BTN', 'SB', 'BB'], 2: ['SB', 'BB'] };
+const PRIOR = {
+  3: {
+    0: [{ k:'B',  label:'Eres el primero en hablar', sub:'push o fold' }],
+    1: [{ k:'S1', label:'El BTN foldeó', sub:'push o fold' }, { k:'S2', label:'El BTN hizo push', sub:'call o fold' }],
+    2: [{ k:'D1', label:'BTN hizo push, SB foldeó', sub:'call o fold' }, { k:'D2', label:'BTN hizo push, SB pagó', sub:'call o fold' }, { k:'D3', label:'BTN foldeó, SB hizo push', sub:'call o fold' }]
+  },
+  2: {
+    0: [{ k:'H1', label:'Eres el primero en hablar (botón)', sub:'push o fold' }],
+    1: [{ k:'H2', label:'El SB hizo push', sub:'call o fold' }]
+  }
+};
+const SUMROWS = { 3: ['B','S1','S2','D1','D2','D3'], 2: ['H1','H2'] };
+let mode = 3, pos = 0, curNode = 'B', hero = null, result = null, preset = null, worker = null, runId = 0;
+
+$('preset').innerHTML = '<option value="-1">Ninguno</option>' + PRESETS.map((p, i) => `<option value="${i}">${p.n}</option>`).join('');
+const RK = 'AKQJT98765432';
+const gridCells = [];
+(function buildGrid() {
+  let html = '';
+  for (let r = 0; r < 13; r++) for (let c = 0; c < 13; c++) {
+    let name;
+    if (r === c) name = RK[r] + RK[c];
+    else if (r < c) name = RK[r] + RK[c] + 's';
+    else name = RK[c] + RK[r] + 'o';
+    html += `<button class="cell" data-i="${NAMES.indexOf(name)}" aria-label="${name}">${name}</button>`;
+  }
+  $('grid').innerHTML = html;
+  $('grid').querySelectorAll('.cell').forEach(el => gridCells[+el.dataset.i] = el);
+})();
+
+function drawControls() {
+  const names = POSN[mode];
+  document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.m === mode));
+  $('posSeg').className = 'seg' + (mode === 2 ? ' two' : '');
+  $('posSeg').innerHTML = names.map((n, i) => `<button type="button" data-p="${i}" aria-pressed="${i === pos}">${n}</button>`).join('');
+  if (!PRIOR[mode][pos].some(o => o.k === curNode)) curNode = PRIOR[mode][pos][0].k;
+  $('nodes').innerHTML = PRIOR[mode][pos].map(o => `<button type="button" class="node" data-k="${o.k}" aria-pressed="${o.k === curNode}">${o.label}<small>${o.sub}</small></button>`).join('');
+  $('t0').textContent = 'Tú (' + names[pos] + ')';
+  $('t1').textContent = names[(pos + 1) % names.length];
+  $('lb2').hidden = mode === 2;
+  if (mode === 3) $('t2').textContent = names[(pos + 2) % 3];
+  $('stackRow').style.gridTemplateColumns = mode === 2 ? 'repeat(2,minmax(0,1fr))' : 'repeat(3,minmax(0,1fr))';
+  $('presetLabel').hidden = mode === 2;
+  $('payNote').hidden = false;
+}
+function readParams() {
+  const n = POSN[mode].length;
+  const f = [+$('st0').value, +$('st1').value, +$('st2').value].slice(0, n);
+  const st = new Array(n).fill(0);
+  for (let i = 0; i < n; i++) st[(pos + i) % n] = f[i];
+  const bb = 2, sb = 1; // internal units: 1 BB = 2
+  let p = [+$('p1').value, +$('p2').value, +$('p3').value];
+  if (mode === 2) p = [p[0], p[1]];
+  const t = p.reduce((a, b) => a + b, 0);
+  if (!(t > 0) || st.some(x => !(x > 0))) return null;
+  return { stacks: st.map(x => x * 2), sb, bb, payouts: p.map(x => x / t) };
+}
+const pct1 = x => x.toFixed(1) + '%';
+
+// ---- solving (worker with main-thread fallback)
+const WORKER_TAIL = `
+let EQ = null;
+onmessage = function (e) {
+  const m = e.data;
+  if (m.type === 'init') { EQ = m.eq; return; }
+  if (m.mode === 3) {
+    const sv = Solver.createSolver(m.P, EQ); let r;
+    do { r = sv.advance(4); postMessage({ type: 'prog', id: m.id, f: r.f }); } while (!r.done);
+    postMessage({ type: 'done', id: m.id, mode: 3, S: sv.S, ev: sv.evaluate() });
+  } else {
+    const hu = Solver.createHU(m.P, EQ); hu.run(300);
+    postMessage({ type: 'done', id: m.id, mode: 2, S: hu.S, ev: hu.evaluate() });
+  }
+};`;
+function finish(id, mode, S, ev, P) {
+  if (id !== runId) return;
+  result = { mode, S, ev, P };
+  $('prog').style.width = '100%'; $('run').disabled = false; $('run').textContent = 'Ejecutar';
+  $('stale').hidden = true;
+  render();
+}
+function mainThreadSolve(id, P) {
+  if (mode === 2) { const hu = Solver.createHU(P, EQ); hu.run(300); return finish(id, 2, hu.S, hu.evaluate(), P); }
+  const sv = Solver.createSolver(P, EQ);
+  (function chunk() {
+    if (id !== runId) return;
+    const r = sv.advance(3);
+    $('prog').style.width = (r.f * 100) + '%';
+    if (!r.done) setTimeout(chunk, 0); else finish(id, 3, sv.S, sv.evaluate(), P);
+  })();
+}
+function startWorker() {
+  if (worker) worker.terminate();
+  worker = null;
+  try {
+    const src = $('solverSrc').textContent + WORKER_TAIL;
+    worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    worker.postMessage({ type: 'init', eq: EQ });
+    worker.onmessage = e => {
+      const m = e.data;
+      if (m.id !== runId) return;
+      if (m.type === 'prog') $('prog').style.width = (m.f * 100) + '%';
+      else finish(m.id, m.mode, m.S, m.ev, curP);
+    };
+    worker.onerror = () => { worker = null; mainThreadSolve(runId, curP); };
+  } catch (err) { worker = null; }
+}
+let curP = null;
+function run() {
+  const P = readParams();
+  if (!P) { $('vBig').textContent = '—'; $('vSub').textContent = 'Revisa que los stacks sean números mayores que cero (en BB).'; return; }
+  curP = P; const id = ++runId;
+  $('stackNote').textContent = 'Ciegas: SB 0.5 · BB 1. En juego: ' + (P.stacks.reduce((a, b) => a + b, 0) / 2).toFixed(1) + ' BB.';
+  $('run').disabled = true; $('run').textContent = 'Calculando…'; $('prog').style.width = '2%';
+  if (worker) worker.terminate();
+  startWorker();
+  if (worker) worker.postMessage({ mode, P, id }); else mainThreadSolve(id, P);
+}
+
+function rangeString(freq) {
+  const pure = [], grouped = {};
+  for (let i = 0; i < 169; i++) {
+    if (freq[i] >= 0.98) pure.push(NAMES[i]);
+    else if (freq[i] > 0.01) { const f = Math.round(freq[i] * 100); (grouped[f] = grouped[f] || []).push(NAMES[i]); }
+  }
+  let out = pure.join(',');
+  Object.keys(grouped).sort((a, b) => b - a).forEach(f => out += (out ? ';' : '') + f + ':' + grouped[f].join(','));
+  return out || '(vacío)';
+}
+
+function render() {
+  if (!result || result.mode !== mode) return;
+  const nd = NODE_BY[curNode], freq = result.S[nd.key], ev = result.ev[curNode];
+  const tot = Solver.pct(freq);
+  $('vTitle').textContent = nd.title;
+  $('vBig').className = 'big push';
+  $('vBig').textContent = pct1(tot);
+  const noData = ev.act.every((x, i) => x === 0 && ev.fold[i] === 0);
+  if (hero == null) {
+    $('vSub').textContent = noData ? 'Este escenario casi no ocurre en el equilibrio con estos stacks.' : 'del total de manos hace ' + nd.act + '. Toca una mano en el cuadro para ver su EV.';
+    $('vKv').innerHTML = '';
+  } else {
+    const f = freq[hero], a = ev.act[hero] * 100, g = ev.fold[hero] * 100, diff = a - g;
+    const word = f >= 0.98 ? nd.act : f <= 0.02 ? nd.fold : nd.act + ' ' + Math.round(f * 100) + '%';
+    $('vSub').textContent = NAMES[hero] + ' → ' + word + (noData ? '' : (f > 0.02 && f < 0.98 ? ' (mixta, EV casi igual)' : ''));
+    $('vKv').innerHTML = noData ? '' : `<dt>EV ${nd.act.toLowerCase()}</dt><dd>${a.toFixed(2)}%</dd><dt>EV fold</dt><dd>${g.toFixed(2)}%</dd><dt>Diferencia</dt><dd>${diff >= 0 ? '+' : ''}${diff.toFixed(2)}</dd>`;
+  }
+  $('gTitle').textContent = 'Rango · ' + nd.short + ' · ' + pct1(tot);
+  gridCells.forEach((el, i) => {
+    const x = freq[i];
+    el.style.background = x <= 0.01 ? 'var(--cell)' : `linear-gradient(to top, var(--push) ${x * 100}%, var(--cell) ${x * 100}%)`;
+    el.classList.toggle('on', x >= 0.5);
+    el.classList.toggle('sel', i === hero);
+  });
+  $('rtext').textContent = '(' + pct1(tot) + ') ' + rangeString(freq);
+  document.querySelectorAll('.node').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === curNode));
+  $('sumTable').innerHTML = '<tr><th>Escenario</th><th style="text-align:right">Rango</th></tr>' + SUMROWS[mode].map(k => `<tr><td>${NODE_BY[k].title}</td><td class="n">${pct1(Solver.pct(result.S[NODE_BY[k].key]))}</td></tr>`).join('');
+  const P = result.P, bad = P.stacks.some(s => s < P.bb);
+  $('vBanner').hidden = !bad;
+  $('vBanner').textContent = bad ? 'Hay un stack menor que la ciega grande. El modelo lo trata como all-in forzado; interpreta el resultado con cuidado.' : '';
+  if (mode === 3 && preset != null && PRESETS[preset].node === curNode) {
+    const pr = PRESETS[preset], ref = Solver.parseRange(pr.rng), ak = NAMES.indexOf('AKs');
+    let inter = 0, uni = 0; for (let i = 0; i < 169; i++) { inter += Math.min(freq[i], ref[i]) * NC[i]; uni += Math.max(freq[i], ref[i]) * NC[i]; }
+    $('refPanel').hidden = false;
+    $('refTable').innerHTML = `<tr><th></th><th style="text-align:right">ICMIZER</th><th style="text-align:right">Esta calculadora</th></tr>
+      <tr><td>Rango</td><td class="n">${pct1(Solver.pct(ref))}</td><td class="n">${pct1(tot)}</td></tr>
+      <tr><td>EV de AKs (diferencia)</td><td class="n">+${pr.ev.toFixed(2)}</td><td class="n">${((ev.act[ak] - ev.fold[ak]) * 100).toFixed(2)}</td></tr>
+      <tr><td>Coincidencia de manos</td><td class="n" colspan="2">${(inter / uni * 100).toFixed(0)}%</td></tr>`;
+    $('refNote').textContent = pr.extra + '. Los rangos de call coinciden de cerca; en los pushes esta calculadora suele quedar entre 5 y 10 puntos más cerrada en el margen.';
+  } else $('refPanel').hidden = true;
+}
+
+// ---- events
+function markStale() { if (result) $('stale').hidden = false; }
+['st0','st1','st2','p1','p2','p3'].forEach(id => $(id).addEventListener('input', () => { preset = null; $('preset').value = -1; markStale(); }));
+$('run').addEventListener('click', run);
+$('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  mode = +b.dataset.m; pos = 0; curNode = PRIOR[mode][0][0].k; hero = null; preset = null; result = null;
+  if (mode === 2) { $('st0').value = 7.5; $('st1').value = 7.5; } else { $('st0').value = 7.5; $('st1').value = 5.5; $('st2').value = 9.5; }
+  drawControls(); $('stale').hidden = true; run();
+});
+$('posSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; pos = +b.dataset.p; drawControls(); markStale(); render(); });
+$('nodes').addEventListener('click', e => { const b = e.target.closest('.node'); if (!b) return; curNode = b.dataset.k; drawControls(); render(); });
+$('grid').addEventListener('click', e => { const b = e.target.closest('.cell'); if (!b) return; const i = +b.dataset.i; hero = hero === i ? null : i; render(); });
+$('preset').addEventListener('change', e => {
+  const i = +e.target.value; if (i < 0) { preset = null; return; }
+  const p = PRESETS[i]; preset = i; mode = 3;
+  pos = p.node === 'B' ? 0 : 1; curNode = p.node; hero = null;
+  $('p1').value = 70; $('p2').value = 30; $('p3').value = 0; // spots de 6-max con 2 premios
+  const bbv = x => Math.round(x / p.bl[1] * 100) / 100;
+  $('st0').value = bbv(p.st[pos]); $('st1').value = bbv(p.st[(pos + 1) % 3]); $('st2').value = bbv(p.st[(pos + 2) % 3]);
+  drawControls(); run();
+});
+$('copy').addEventListener('click', () => {
+  const t = $('rtext').textContent;
+  const sel = () => { const r = document.createRange(); r.selectNodeContents($('rtext')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+  const ok = () => { $('copy').textContent = 'Copiado'; setTimeout(() => $('copy').textContent = 'Copiar rango', 1200); };
+  try { navigator.clipboard.writeText(t).then(ok, sel); } catch (e) { sel(); }
+});
+drawControls(); run();
+</script>
+
+</body></html>
